@@ -2,67 +2,66 @@ use crate::ast::Token;
 use crate::State;
 use libc;
 
-pub fn getchar() -> char {
+fn getchar() -> char {
     char::from_u32(unsafe { libc::getchar() } as u32).unwrap()
 }
 
-fn gettok(state: &mut State) -> Token {
+// Grab the next token from the stream
+fn get_token() -> Token {
+    let mut last_char = ' ';
     // Skip any whitespace.
-    while state.last_char.is_whitespace() {
-        state.last_char = getchar();
+    while last_char.is_whitespace() {
+        last_char = getchar();
     }
 
     // identifier: [a-zA-Z][a-zA-Z0-9]*
-    if state.last_char.is_alphabetic() {
-        state.identifier_str = state.last_char.to_string();
-        state.last_char = getchar();
-        while (state.last_char).is_alphanumeric() {
-            state.identifier_str.push_str(&state.last_char.to_string());
-            state.last_char = getchar();
+    if last_char.is_alphabetic() {
+        let mut identifier_str = last_char.to_string();
+        last_char = getchar();
+        while (last_char).is_alphanumeric() {
+            identifier_str.push_str(&last_char.to_string());
+            last_char = getchar();
         }
 
-        if state.identifier_str == "def" {
+        if identifier_str == "def" {
             return Token::TokDef;
-        } else if state.identifier_str == "extern" {
+        } else if identifier_str == "extern" {
             return Token::TokExtern;
         } else {
-            return Token::TokIdentifier;
+            return Token::TokIdentifier(identifier_str);
         }
     }
 
     // Number: [0-9.]+
-    if state.last_char.is_digit(10) || state.last_char == '.' {
+    if last_char.is_digit(10) || last_char == '.' {
         let mut num_str = String::from("");
-        while state.last_char.is_digit(10) || state.last_char == '.' {
-            num_str.push_str(&state.last_char.to_string());
-            state.last_char = getchar();
+        while last_char.is_digit(10) || last_char == '.' {
+            num_str.push_str(&last_char.to_string());
+            last_char = getchar();
         }
-        state.num_val = num_str.parse().unwrap();
-        return Token::TokNumber;
+        return Token::TokNumber(num_str.parse().unwrap());
     }
 
     // Comment until end of line.
-    if state.last_char == '#' {
-        while !state.last_char.is_whitespace() && state.last_char != '\n' && state.last_char != '\r'
-        {
-            state.last_char = getchar();
+    if last_char == '#' {
+        // TODO: !last_char.is_whitespace() -> check for != EOF
+        while !last_char.is_whitespace() && last_char != '\n' && last_char != '\r' {
+            last_char = getchar();
         }
 
-        if !state.last_char.is_whitespace() {
-            return gettok(state);
+        // TODO: !last_char.is_whitespace() -> check for != EOF
+        if !last_char.is_whitespace() {
+            return get_token();
         }
     }
 
-    if state.last_char.is_whitespace() {
+    if last_char.is_whitespace() {
         return Token::TokEOF;
     }
 
-    // TODO: Still unclear on why this is necessary
-    let this_char = state.last_char;
-    state.last_char = getchar();
-    return Token::TokChar(this_char);
+    return Token::TokChar(last_char);
 }
 
 pub fn get_next_token(state: &mut State) {
-    state.cur_tok = gettok(state);
+    state.cur_tok = get_token();
 }

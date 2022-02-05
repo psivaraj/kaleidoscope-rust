@@ -14,7 +14,12 @@ pub fn get_tok_precedence(token: &Token) -> i32 {
 
 // numberexpr ::= number
 pub fn parse_number_expr(state: &mut State) -> ExprAST {
-    return ExprAST::NumberExprAST { val: state.num_val };
+    let num_val = match state.cur_tok {
+        Token::TokNumber(num) => num,
+        _ => panic!("Expected a TokNumber"),
+    };
+
+    return ExprAST::NumberExprAST { val: num_val };
 }
 
 // parenexpr ::= '(' expression ')'
@@ -41,7 +46,10 @@ pub fn parse_paren_expr(state: &mut State) -> ExprAST {
 //   ::= identifier
 //   ::= identifier '(' expression* ')'
 pub fn parse_identifier_expr(state: &mut State) -> ExprAST {
-    let id_name = state.identifier_str.clone();
+    let id_name = match state.cur_tok {
+        Token::TokIdentifier(a) => a,
+        _ => String::new(),
+    };
 
     get_next_token(state); // eat the identifier
 
@@ -64,8 +72,8 @@ pub fn parse_identifier_expr(state: &mut State) -> ExprAST {
         loop {
             // let arg = parse_expression(state);
             // match arg {
-                // ExprAST::Null -> return ExprAST::Null
-                // _ -> args.push(Box::new(arg))
+            // ExprAST::Null -> return ExprAST::Null
+            // _ -> args.push(Box::new(arg))
             // }
 
             if let Token::TokChar(')') = state.cur_tok {
@@ -95,18 +103,50 @@ pub fn parse_identifier_expr(state: &mut State) -> ExprAST {
 //   ::= numberexpr
 //   ::= parenexpr
 fn parse_primary(state: &mut State) -> ExprAST {
-
     match state.cur_tok {
-        Token::TokIdentifier => return parse_identifier_expr(state),
-        Token::TokNumber => return parse_identifier_expr(state),
+        Token::TokIdentifier(_) => return parse_identifier_expr(state),
+        Token::TokNumber(_) => return parse_number_expr(state),
         Token::TokChar('(') => return parse_paren_expr(state),
-        _ => panic!("unknown token when expecting an expression")
+        _ => panic!("unknown token when expecting an expression"),
     }
-
 }
 
-fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, expr_ast: ExprAST) -> ExprAST {
+fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: ExprAST) -> ExprAST {
     loop {
         let tok_prec = get_tok_precedence(&state.cur_tok);
+
+        // If this is a binop that binds at least as tightly as the current binop,
+        // consume it, otherwise we are done.
+        if tok_prec < expr_prec {
+            return lhs;
+        }
+
+        // Okay, we know this is a binop.
+        let binop = match state.cur_tok {
+            Token::TokChar(a) => a,
+            _ => panic!("Expecting a TokChar containing a binary operator e.g. `+`"),
+        };
+
+        state.cur_tok.clone();
+        get_next_token(state); // eat binop
+
+        // Parse the primary expression after the binary operator.
+        let mut rhs = parse_primary(state);
+        if let ExprAST::Null = rhs {
+            return rhs;
+        }
+
+        // If BinOp binds less tightly with RHS than the operator after RHS, let
+        // the pending operator take RHS as its LHS.
+        let next_prec = get_tok_precedence(&state.cur_tok);
+        if tok_prec < next_prec {
+            rhs = parse_bin_op_rhs(state, tok_prec + 1, rhs);
+        }
+
+        return ExprAST::BinaryExprAST {
+            op: binop,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        };
     }
 }

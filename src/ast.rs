@@ -1,3 +1,4 @@
+#[derive(Clone)]
 pub enum Token {
     TokUndef,
     TokEOF,
@@ -7,13 +8,14 @@ pub enum Token {
     TokExtern,
 
     // primary
-    TokIdentifier,
-    TokNumber,
+    TokIdentifier(String),
+    TokNumber(f64),
 
     // catch-all
     TokChar(char),
 }
 
+#[derive(Clone)]
 pub enum ExprAST {
     Null,
 
