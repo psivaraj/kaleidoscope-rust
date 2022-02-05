@@ -21,5 +21,9 @@ fn main() {
 
     // Print text to the console
     println!("Hello World!");
-    lexer::getchar();
+    let mut state = State::new();
+    lexer::get_next_token(&mut state);
+    println!("Next token is {:?}!", state.cur_tok);
+    lexer::get_next_token(&mut state);
+    println!("Next token is {:?}!", state.cur_tok);
 }

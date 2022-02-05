@@ -1,4 +1,4 @@
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     TokUndef,
     TokEOF,
@@ -54,6 +54,12 @@ pub struct PrototypeAST {
 impl PrototypeAST {
     pub fn get_name(&self) -> &str {
         &self.name
+    }
+    pub fn new(name: String, args: Vec<String>) -> Self {
+        PrototypeAST {
+            name: name,
+            args: args,
+        }
     }
 }
 

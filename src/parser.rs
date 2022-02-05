@@ -1,4 +1,4 @@
-use crate::ast::{ExprAST, Token};
+use crate::ast::{ExprAST, FunctionAST, PrototypeAST, Token};
 use crate::lexer::get_next_token;
 use crate::State;
 
@@ -14,39 +14,38 @@ pub fn get_tok_precedence(token: &Token) -> i32 {
 
 // numberexpr ::= number
 pub fn parse_number_expr(state: &mut State) -> ExprAST {
-    let num_val = match state.cur_tok {
-        Token::TokNumber(num) => num,
-        _ => panic!("Expected a TokNumber"),
-    };
-
-    return ExprAST::NumberExprAST { val: num_val };
+    match state.cur_tok {
+        Token::TokNumber(num) => ExprAST::NumberExprAST { val: num },
+        _ => ExprAST::Null,
+    }
 }
 
 // parenexpr ::= '(' expression ')'
 pub fn parse_paren_expr(state: &mut State) -> ExprAST {
     get_next_token(state); // eat (.
 
-    // TODO
-    // let v = parse_expression();
+    let v = parse_expression(state);
+
+    if matches!(v, ExprAST::Null) {
+        return v;
+    }
 
     // If we don't get a ")" then we should panic
-    match state.cur_tok {
-        Token::TokChar(')') => (),
-        _ => panic!("Expected )"),
+    if !matches!(state.cur_tok, Token::TokChar(')')) {
+        panic!("Expected ')'");
     }
 
     get_next_token(state); // eat ).
 
-    // TODO:
-    // return v;
-    return ExprAST::Null;
+    return v;
 }
 
 // identifierexpr
 //   ::= identifier
 //   ::= identifier '(' expression* ')'
 pub fn parse_identifier_expr(state: &mut State) -> ExprAST {
-    let id_name = match state.cur_tok {
+    // TODO: Unclear why I have to clone here
+    let id_name = match state.cur_tok.clone() {
         Token::TokIdentifier(a) => a,
         _ => String::new(),
     };
@@ -54,36 +53,27 @@ pub fn parse_identifier_expr(state: &mut State) -> ExprAST {
     get_next_token(state); // eat the identifier
 
     // Handle simple variable reference
-    match state.cur_tok {
-        Token::TokChar('(') => (),
-        _ => return ExprAST::VariableExprAST { name: id_name },
+    if !matches!(state.cur_tok, Token::TokChar('(')) {
+        return ExprAST::VariableExprAST { name: id_name };
     }
 
     // Call.
     get_next_token(state); // eat '('
-
-    let cur_tok = match state.cur_tok {
-        Token::TokChar(a) => a,
-        _ => ' ',
-    };
-
     let mut args: Vec<Box<ExprAST>> = Vec::new();
-    if cur_tok != ')' {
+    if !matches!(state.cur_tok, Token::TokChar(')')) {
         loop {
-            // let arg = parse_expression(state);
-            // match arg {
-            // ExprAST::Null -> return ExprAST::Null
-            // _ -> args.push(Box::new(arg))
-            // }
+            let arg = parse_expression(state);
+            match arg {
+                ExprAST::Null => return ExprAST::Null,
+                _ => args.push(Box::new(arg)),
+            }
 
-            if let Token::TokChar(')') = state.cur_tok {
+            if matches!(state.cur_tok, Token::TokChar(')')) {
                 break;
             }
 
-            // Handle simple variable reference
-            match state.cur_tok {
-                Token::TokChar(',') => (),
-                _ => panic!("Expected ')' or ',' in argument list"),
+            if !matches!(state.cur_tok, Token::TokChar(',')) {
+                panic!("Expected ')' or ',' in argument list")
             }
 
             get_next_token(state);
@@ -93,9 +83,10 @@ pub fn parse_identifier_expr(state: &mut State) -> ExprAST {
     // Eat the ')'.
     get_next_token(state);
 
-    // TODO: Fix
-    // return ExprAST::CallExprAST{ callee: id_name, args: args};
-    return ExprAST::Null;
+    return ExprAST::CallExprAST {
+        callee: id_name,
+        args: args,
+    };
 }
 
 // primary
@@ -107,7 +98,7 @@ fn parse_primary(state: &mut State) -> ExprAST {
         Token::TokIdentifier(_) => return parse_identifier_expr(state),
         Token::TokNumber(_) => return parse_number_expr(state),
         Token::TokChar('(') => return parse_paren_expr(state),
-        _ => panic!("unknown token when expecting an expression"),
+        _ => ExprAST::Null,
     }
 }
 
@@ -127,12 +118,12 @@ fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: ExprAST) -> ExprAST 
             _ => panic!("Expecting a TokChar containing a binary operator e.g. `+`"),
         };
 
-        state.cur_tok.clone();
         get_next_token(state); // eat binop
 
         // Parse the primary expression after the binary operator.
         let mut rhs = parse_primary(state);
-        if let ExprAST::Null = rhs {
+
+        if matches!(rhs, ExprAST::Null) {
             return rhs;
         }
 
@@ -149,4 +140,49 @@ fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: ExprAST) -> ExprAST 
             rhs: Box::new(rhs),
         };
     }
+}
+
+fn parse_expression(state: &mut State) -> ExprAST {
+    let lhs = parse_primary(state);
+    if matches!(lhs, ExprAST::Null) {
+        return lhs;
+    } else {
+        return parse_bin_op_rhs(state, 0, lhs);
+    }
+}
+
+// prototype
+//   ::= id '(' id* ')'
+fn parse_prototype(state: &mut State) -> PrototypeAST {
+    let fn_name = match state.cur_tok.clone() {
+        Token::TokIdentifier(a) => a,
+        _ => panic!("Expected function name in prototype"),
+    };
+
+    get_next_token(state);
+
+    // Handle simple variable reference
+    // If we don't get a ")" then we should panic
+    if !matches!(state.cur_tok, Token::TokChar('(')) {
+        panic!("Expected '(' in prototype");
+    }
+
+    let mut arg_names: Vec<String> = Vec::new();
+
+    get_next_token(state);
+    while matches!(state.cur_tok, Token::TokIdentifier(_)) {
+        if let Token::TokIdentifier(a) = state.cur_tok.clone() {
+            arg_names.push(a)
+        }
+        get_next_token(state);
+    }
+
+    if !matches!(state.cur_tok, Token::TokChar(')')) {
+        panic!("Expected ')' in prototype");
+    }
+
+    // success.
+    get_next_token(state); // eat ')'.
+
+    return PrototypeAST::new(fn_name, arg_names);
 }
