@@ -15,10 +15,16 @@ pub enum Token {
     TokChar(char),
 }
 
-#[derive(Clone)]
-pub enum ExprAST {
+#[derive(Debug)]
+pub enum AST {
     Null,
+    Expr(ExprAST),
+    Prototype(PrototypeAST),
+    Function(FunctionAST),
+}
 
+#[derive(Debug, Clone)]
+pub enum ExprAST {
     // NumberExprAST - Expression class for numeric literals like "1.0".
     NumberExprAST {
         val: f64,
@@ -46,6 +52,7 @@ pub enum ExprAST {
 // PrototypeAST - This class represents the "prototype" for a function,
 // which captures its name, and its argument names (thus implicitly the number
 // of arguments the function takes).
+#[derive(Debug)]
 pub struct PrototypeAST {
     name: String,
     args: Vec<String>,
@@ -64,6 +71,7 @@ impl PrototypeAST {
 }
 
 // FunctionAST - This class represents a function definition itself.
+#[derive(Debug)]
 pub struct FunctionAST {
     proto: PrototypeAST,
     body: ExprAST,

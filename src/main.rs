@@ -3,15 +3,18 @@ mod lexer;
 mod parser;
 
 use ast::Token;
+use parser::main_loop;
 
 pub struct State {
     pub cur_tok: Token,
+    pub last_char: char,
 }
 
 impl State {
     pub fn new() -> State {
         State {
             cur_tok: Token::TokUndef,
+            last_char: ' ',
         }
     }
 }
@@ -19,11 +22,10 @@ impl State {
 fn main() {
     // Statements here are executed when the compiled binary is called
 
-    // Print text to the console
-    println!("Hello World!");
     let mut state = State::new();
+    println!("ready> ");
+
+    // Prime the first token
     lexer::get_next_token(&mut state);
-    println!("Next token is {:?}!", state.cur_tok);
-    lexer::get_next_token(&mut state);
-    println!("Next token is {:?}!", state.cur_tok);
+    main_loop(&mut state);
 }

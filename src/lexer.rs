@@ -7,20 +7,19 @@ fn getchar() -> char {
 }
 
 // Grab the next token from the stream
-fn get_token() -> Token {
-    let mut last_char = ' ';
+fn get_token(state: &mut State) -> Token {
     // Skip any whitespace.
-    while last_char.is_whitespace() {
-        last_char = getchar();
+    while state.last_char.is_whitespace() {
+        state.last_char = getchar();
     }
 
     // identifier: [a-zA-Z][a-zA-Z0-9]*
-    if last_char.is_alphabetic() {
-        let mut identifier_str = last_char.to_string();
-        last_char = getchar();
-        while (last_char).is_alphanumeric() {
-            identifier_str.push_str(&last_char.to_string());
-            last_char = getchar();
+    if state.last_char.is_alphabetic() {
+        let mut identifier_str = state.last_char.to_string();
+        state.last_char = getchar();
+        while (state.last_char).is_alphanumeric() {
+            identifier_str.push_str(&state.last_char.to_string());
+            state.last_char = getchar();
         }
 
         if identifier_str == "def" {
@@ -33,35 +32,38 @@ fn get_token() -> Token {
     }
 
     // Number: [0-9.]+
-    if last_char.is_digit(10) || last_char == '.' {
+    if state.last_char.is_digit(10) || state.last_char == '.' {
         let mut num_str = String::from("");
-        while last_char.is_digit(10) || last_char == '.' {
-            num_str.push_str(&last_char.to_string());
-            last_char = getchar();
+        while state.last_char.is_digit(10) || state.last_char == '.' {
+            num_str.push_str(&state.last_char.to_string());
+            state.last_char = getchar();
         }
         return Token::TokNumber(num_str.parse().unwrap());
     }
 
     // Comment until end of line.
-    if last_char == '#' {
-        // TODO: !last_char.is_whitespace() -> check for != EOF
-        while !last_char.is_whitespace() && last_char != '\n' && last_char != '\r' {
-            last_char = getchar();
+    if state.last_char == '#' {
+        // TODO: !state.last_char.is_whitespace() -> check for != EOF
+        while !state.last_char.is_whitespace() && state.last_char != '\n' && state.last_char != '\r'
+        {
+            state.last_char = getchar();
         }
 
-        // TODO: !last_char.is_whitespace() -> check for != EOF
-        if !last_char.is_whitespace() {
-            return get_token();
+        // TODO: !state.last_char.is_whitespace() -> check for != EOF
+        if !state.last_char.is_whitespace() {
+            return get_token(state);
         }
     }
 
-    if last_char.is_whitespace() {
+    if state.last_char.is_whitespace() {
         return Token::TokEOF;
     }
 
-    return Token::TokChar(last_char);
+    let this_char = state.last_char;
+    state.last_char = getchar();
+    return Token::TokChar(this_char);
 }
 
 pub fn get_next_token(state: &mut State) {
-    state.cur_tok = get_token();
+    state.cur_tok = get_token(state);
 }

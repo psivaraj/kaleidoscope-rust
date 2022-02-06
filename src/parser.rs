@@ -1,4 +1,4 @@
-use crate::ast::{ExprAST, FunctionAST, PrototypeAST, Token};
+use crate::ast::{ExprAST, FunctionAST, PrototypeAST, Token, AST};
 use crate::lexer::get_next_token;
 use crate::State;
 
@@ -13,20 +13,20 @@ pub fn get_tok_precedence(token: &Token) -> i32 {
 }
 
 // numberexpr ::= number
-pub fn parse_number_expr(state: &mut State) -> ExprAST {
+pub fn parse_number_expr(state: &mut State) -> AST {
     match state.cur_tok {
-        Token::TokNumber(num) => ExprAST::NumberExprAST { val: num },
-        _ => ExprAST::Null,
+        Token::TokNumber(num) => AST::Expr(ExprAST::NumberExprAST { val: num }),
+        _ => AST::Null,
     }
 }
 
 // parenexpr ::= '(' expression ')'
-pub fn parse_paren_expr(state: &mut State) -> ExprAST {
+pub fn parse_paren_expr(state: &mut State) -> AST {
     get_next_token(state); // eat (.
 
     let v = parse_expression(state);
 
-    if matches!(v, ExprAST::Null) {
+    if matches!(v, AST::Null) {
         return v;
     }
 
@@ -43,18 +43,17 @@ pub fn parse_paren_expr(state: &mut State) -> ExprAST {
 // identifierexpr
 //   ::= identifier
 //   ::= identifier '(' expression* ')'
-pub fn parse_identifier_expr(state: &mut State) -> ExprAST {
-    // TODO: Unclear why I have to clone here
+pub fn parse_identifier_expr(state: &mut State) -> AST {
     let id_name = match state.cur_tok.clone() {
         Token::TokIdentifier(a) => a,
-        _ => String::new(),
+        _ => return AST::Null,
     };
 
     get_next_token(state); // eat the identifier
 
     // Handle simple variable reference
     if !matches!(state.cur_tok, Token::TokChar('(')) {
-        return ExprAST::VariableExprAST { name: id_name };
+        return AST::Expr(ExprAST::VariableExprAST { name: id_name });
     }
 
     // Call.
@@ -64,8 +63,8 @@ pub fn parse_identifier_expr(state: &mut State) -> ExprAST {
         loop {
             let arg = parse_expression(state);
             match arg {
-                ExprAST::Null => return ExprAST::Null,
-                _ => args.push(Box::new(arg)),
+                AST::Expr(arg) => args.push(Box::new(arg)),
+                _ => return AST::Null,
             }
 
             if matches!(state.cur_tok, Token::TokChar(')')) {
@@ -83,26 +82,26 @@ pub fn parse_identifier_expr(state: &mut State) -> ExprAST {
     // Eat the ')'.
     get_next_token(state);
 
-    return ExprAST::CallExprAST {
+    return AST::Expr(ExprAST::CallExprAST {
         callee: id_name,
         args: args,
-    };
+    });
 }
 
 // primary
 //   ::= identifierexpr
 //   ::= numberexpr
 //   ::= parenexpr
-fn parse_primary(state: &mut State) -> ExprAST {
+fn parse_primary(state: &mut State) -> AST {
     match state.cur_tok {
+        Token::TokChar('(') => return parse_paren_expr(state),
         Token::TokIdentifier(_) => return parse_identifier_expr(state),
         Token::TokNumber(_) => return parse_number_expr(state),
-        Token::TokChar('(') => return parse_paren_expr(state),
-        _ => ExprAST::Null,
+        _ => panic!("Unknown token when expecting an expression."),
     }
 }
 
-fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: ExprAST) -> ExprAST {
+fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: AST) -> AST {
     loop {
         let tok_prec = get_tok_precedence(&state.cur_tok);
 
@@ -115,7 +114,7 @@ fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: ExprAST) -> ExprAST 
         // Okay, we know this is a binop.
         let binop = match state.cur_tok {
             Token::TokChar(a) => a,
-            _ => panic!("Expecting a TokChar containing a binary operator e.g. `+`"),
+            _ => return AST::Null,
         };
 
         get_next_token(state); // eat binop
@@ -123,7 +122,7 @@ fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: ExprAST) -> ExprAST 
         // Parse the primary expression after the binary operator.
         let mut rhs = parse_primary(state);
 
-        if matches!(rhs, ExprAST::Null) {
+        if matches!(rhs, AST::Null) {
             return rhs;
         }
 
@@ -134,17 +133,22 @@ fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: ExprAST) -> ExprAST 
             rhs = parse_bin_op_rhs(state, tok_prec + 1, rhs);
         }
 
-        return ExprAST::BinaryExprAST {
-            op: binop,
-            lhs: Box::new(lhs),
-            rhs: Box::new(rhs),
-        };
+        match (lhs, rhs) {
+            (AST::Expr(lhs_arg), AST::Expr(rhs_arg)) => {
+                return AST::Expr(ExprAST::BinaryExprAST {
+                    op: binop,
+                    lhs: Box::new(lhs_arg),
+                    rhs: Box::new(rhs_arg),
+                })
+            }
+            _ => return AST::Null,
+        }
     }
 }
 
-fn parse_expression(state: &mut State) -> ExprAST {
+fn parse_expression(state: &mut State) -> AST {
     let lhs = parse_primary(state);
-    if matches!(lhs, ExprAST::Null) {
+    if matches!(lhs, AST::Null) {
         return lhs;
     } else {
         return parse_bin_op_rhs(state, 0, lhs);
@@ -153,10 +157,10 @@ fn parse_expression(state: &mut State) -> ExprAST {
 
 // prototype
 //   ::= id '(' id* ')'
-fn parse_prototype(state: &mut State) -> PrototypeAST {
+fn parse_prototype(state: &mut State) -> AST {
     let fn_name = match state.cur_tok.clone() {
         Token::TokIdentifier(a) => a,
-        _ => panic!("Expected function name in prototype"),
+        _ => panic!("Expected function name in prototype."),
     };
 
     get_next_token(state);
@@ -166,8 +170,8 @@ fn parse_prototype(state: &mut State) -> PrototypeAST {
     }
 
     let mut arg_names: Vec<String> = Vec::new();
-
     get_next_token(state);
+
     while matches!(state.cur_tok, Token::TokIdentifier(_)) {
         if let Token::TokIdentifier(a) = state.cur_tok.clone() {
             arg_names.push(a)
@@ -182,24 +186,85 @@ fn parse_prototype(state: &mut State) -> PrototypeAST {
     // success.
     get_next_token(state); // eat ')'.
 
-    return PrototypeAST::new(fn_name, arg_names);
+    return AST::Prototype(PrototypeAST::new(fn_name, arg_names));
 }
 
-fn parse_definition(state: &mut State) -> FunctionAST {
-    // TODO: How to handle ExprAST::Null
+// definition ::= 'def' prototype expression
+fn parse_definition(state: &mut State) -> AST {
     get_next_token(state); // eat def.
     let proto = parse_prototype(state);
     let body = parse_expression(state);
 
-    return FunctionAST::new(proto, body);
+    match (proto, body) {
+        (AST::Prototype(proto_arg), AST::Expr(body_arg)) => {
+            return AST::Function(FunctionAST::new(proto_arg, body_arg))
+        }
+        _ => return AST::Null,
+    };
 }
 
-fn parse_top_level_expr(state: &mut State) -> FunctionAST {
-    // TODO: How to handle ExprAST::Null
-    let proto = PrototypeAST::new(String::from(""), vec![]);
+// toplevelexpr ::= expression
+fn parse_top_level_expr(state: &mut State) -> AST {
+    let proto = AST::Prototype(PrototypeAST::new(String::from(""), vec![]));
     let body = parse_expression(state);
 
-    return FunctionAST::new(proto, body);
+    match (proto, body) {
+        (AST::Prototype(proto_arg), AST::Expr(body_arg)) => {
+            return AST::Function(FunctionAST::new(proto_arg, body_arg))
+        }
+        _ => return AST::Null,
+    };
+}
+
+// external ::= 'extern' prototype
+fn parse_extern(state: &mut State) -> AST {
+    get_next_token(state);
+    return parse_prototype(state);
 }
 
 // TODO: You are at the point of understanding and building static void MainLoop() {
+fn handle_defintion(state: &mut State) {
+    let node = parse_definition(state);
+
+    if matches!(node, AST::Null) {
+        // Skip the token for error recovery
+        get_next_token(state);
+    } else {
+        println!("Parsed a function definition.");
+    }
+}
+
+fn handle_extern(state: &mut State) {
+    let node = parse_extern(state);
+
+    if matches!(node, AST::Null) {
+        // Skip the token for error recovery
+        get_next_token(state);
+    } else {
+        println!("Parsed an extern.");
+    }
+}
+
+fn handle_top_level_expression(state: &mut State) {
+    let node = parse_top_level_expr(state);
+
+    if matches!(node, AST::Null) {
+        // Skip the token for error recovery
+        get_next_token(state);
+    } else {
+        println!("Parsed a top-level expression.");
+    }
+}
+
+pub fn main_loop(state: &mut State) {
+    loop {
+        println!("ready >");
+        match state.cur_tok {
+            Token::TokEOF => break,
+            Token::TokChar(';') => get_next_token(state),
+            Token::TokDef => handle_defintion(state),
+            Token::TokExtern => handle_extern(state),
+            _ => handle_top_level_expression(state),
+        }
+    }
+}
