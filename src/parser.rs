@@ -14,10 +14,12 @@ pub fn get_tok_precedence(token: &Token) -> i32 {
 
 // numberexpr ::= number
 pub fn parse_number_expr(state: &mut State) -> AST {
-    match state.cur_tok {
+    let result = match state.cur_tok {
         Token::TokNumber(num) => AST::Expr(ExprAST::NumberExprAST { val: num }),
         _ => AST::Null,
-    }
+    };
+    get_next_token(state); // consume the Number
+    return result;
 }
 
 // parenexpr ::= '(' expression ')'
@@ -230,7 +232,9 @@ fn handle_defintion(state: &mut State) {
         // Skip the token for error recovery
         get_next_token(state);
     } else {
-        println!("Parsed a function definition.");
+        println!("Parsed a function definition {}.", node);
+        println!("Current token is {:?}.", state.cur_tok);
+        println!("Last char is {:?}.", state.last_char);
     }
 }
 
@@ -241,7 +245,9 @@ fn handle_extern(state: &mut State) {
         // Skip the token for error recovery
         get_next_token(state);
     } else {
-        println!("Parsed an extern.");
+        println!("Parsed an extern {}.", node);
+        println!("Current token is {:?}.", state.cur_tok);
+        println!("Last char is {:?}.", state.last_char);
     }
 }
 
@@ -252,7 +258,9 @@ fn handle_top_level_expression(state: &mut State) {
         // Skip the token for error recovery
         get_next_token(state);
     } else {
-        println!("Parsed a top-level expression.");
+        println!("Parsed a top-level expression {}.", node);
+        println!("Current token is {:?}.", state.cur_tok);
+        println!("Last char is {:?}.", state.last_char);
     }
 }
 

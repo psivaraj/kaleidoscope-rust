@@ -1,3 +1,5 @@
+use std::fmt;
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
     TokUndef,
@@ -21,6 +23,17 @@ pub enum AST {
     Expr(ExprAST),
     Prototype(PrototypeAST),
     Function(FunctionAST),
+}
+
+impl fmt::Display for AST {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            AST::Null => write!(f, "Null"),
+            AST::Expr(val) => write!(f, "{}", val),
+            AST::Prototype(val) => write!(f, "{}", val),
+            AST::Function(val) => write!(f, "{}", val),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -49,6 +62,21 @@ pub enum ExprAST {
     },
 }
 
+impl fmt::Display for ExprAST {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ExprAST::NumberExprAST { val } => write!(f, "NumberExprAST({val})"),
+            ExprAST::VariableExprAST { name } => write!(f, "VariableExprAST({name})"),
+            ExprAST::BinaryExprAST { op, lhs, rhs } => {
+                write!(f, "BinaryExprAST({op}, {lhs}, {rhs})")
+            }
+            ExprAST::CallExprAST { callee, args } => {
+                write!(f, "BinaryExprAST({callee}, {:?})", args)
+            }
+        }
+    }
+}
+
 // PrototypeAST - This class represents the "prototype" for a function,
 // which captures its name, and its argument names (thus implicitly the number
 // of arguments the function takes).
@@ -70,6 +98,12 @@ impl PrototypeAST {
     }
 }
 
+impl fmt::Display for PrototypeAST {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "PrototypeAST({}, {:?})", self.name, self.args)
+    }
+}
+
 // FunctionAST - This class represents a function definition itself.
 #[derive(Debug)]
 pub struct FunctionAST {
@@ -83,5 +117,11 @@ impl FunctionAST {
             proto: proto,
             body: body,
         }
+    }
+}
+
+impl fmt::Display for FunctionAST {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "FunctionAST({}, {})", self.proto, self.body)
     }
 }
