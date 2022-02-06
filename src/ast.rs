@@ -68,3 +68,12 @@ pub struct FunctionAST {
     proto: PrototypeAST,
     body: ExprAST,
 }
+
+impl FunctionAST {
+    pub fn new(proto: PrototypeAST, body: ExprAST) -> Self {
+        FunctionAST {
+            proto: proto,
+            body: body,
+        }
+    }
+}

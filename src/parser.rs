@@ -161,8 +161,6 @@ fn parse_prototype(state: &mut State) -> PrototypeAST {
 
     get_next_token(state);
 
-    // Handle simple variable reference
-    // If we don't get a ")" then we should panic
     if !matches!(state.cur_tok, Token::TokChar('(')) {
         panic!("Expected '(' in prototype");
     }
@@ -186,3 +184,22 @@ fn parse_prototype(state: &mut State) -> PrototypeAST {
 
     return PrototypeAST::new(fn_name, arg_names);
 }
+
+fn parse_definition(state: &mut State) -> FunctionAST {
+    // TODO: How to handle ExprAST::Null
+    get_next_token(state); // eat def.
+    let proto = parse_prototype(state);
+    let body = parse_expression(state);
+
+    return FunctionAST::new(proto, body);
+}
+
+fn parse_top_level_expr(state: &mut State) -> FunctionAST {
+    // TODO: How to handle ExprAST::Null
+    let proto = PrototypeAST::new(String::from(""), vec![]);
+    let body = parse_expression(state);
+
+    return FunctionAST::new(proto, body);
+}
+
+// TODO: You are at the point of understanding and building static void MainLoop() {
