@@ -29,3 +29,7 @@ fn main() {
     lexer::get_next_token(&mut state);
     main_loop(&mut state);
 }
+
+// TODO: You changed to a flattened AST and :fire: ExprAST, so now you need to check
+// all the parsing still works as before. Then you can implement a CodeGen method on
+// each struct.

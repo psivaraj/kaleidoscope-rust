@@ -1,4 +1,7 @@
-use crate::ast::{ExprAST, FunctionAST, PrototypeAST, Token, AST};
+use crate::ast::{
+    BinaryExprAST, CallExprAST, FunctionAST, NumberExprAST, PrototypeAST, Token, VariableExprAST,
+    AST,
+};
 use crate::lexer::get_next_token;
 use crate::State;
 
@@ -15,7 +18,7 @@ pub fn get_tok_precedence(token: &Token) -> i32 {
 // numberexpr ::= number
 pub fn parse_number_expr(state: &mut State) -> AST {
     let result = match state.cur_tok {
-        Token::TokNumber(num) => AST::Expr(ExprAST::NumberExprAST { val: num }),
+        Token::TokNumber(num) => AST::Number(NumberExprAST::new(num)),
         _ => AST::Null,
     };
     get_next_token(state); // consume the Number
@@ -55,19 +58,16 @@ pub fn parse_identifier_expr(state: &mut State) -> AST {
 
     // Handle simple variable reference
     if !matches!(state.cur_tok, Token::TokChar('(')) {
-        return AST::Expr(ExprAST::VariableExprAST { name: id_name });
+        return AST::Variable(VariableExprAST::new(id_name));
     }
 
     // Call.
     get_next_token(state); // eat '('
-    let mut args: Vec<Box<ExprAST>> = Vec::new();
+    let mut args: Vec<Box<AST>> = Vec::new();
     if !matches!(state.cur_tok, Token::TokChar(')')) {
         loop {
             let arg = parse_expression(state);
-            match arg {
-                AST::Expr(arg) => args.push(Box::new(arg)),
-                _ => return AST::Null,
-            }
+            args.push(Box::new(arg));
 
             if matches!(state.cur_tok, Token::TokChar(')')) {
                 break;
@@ -84,10 +84,7 @@ pub fn parse_identifier_expr(state: &mut State) -> AST {
     // Eat the ')'.
     get_next_token(state);
 
-    return AST::Expr(ExprAST::CallExprAST {
-        callee: id_name,
-        args: args,
-    });
+    return AST::Call(CallExprAST::new(id_name, args));
 }
 
 // primary
@@ -135,16 +132,7 @@ fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: AST) -> AST {
             rhs = parse_bin_op_rhs(state, tok_prec + 1, rhs);
         }
 
-        match (lhs, rhs) {
-            (AST::Expr(lhs_arg), AST::Expr(rhs_arg)) => {
-                return AST::Expr(ExprAST::BinaryExprAST {
-                    op: binop,
-                    lhs: Box::new(lhs_arg),
-                    rhs: Box::new(rhs_arg),
-                })
-            }
-            _ => return AST::Null,
-        }
+        return AST::Binary(BinaryExprAST::new(binop, lhs, rhs));
     }
 }
 
@@ -197,12 +185,7 @@ fn parse_definition(state: &mut State) -> AST {
     let proto = parse_prototype(state);
     let body = parse_expression(state);
 
-    match (proto, body) {
-        (AST::Prototype(proto_arg), AST::Expr(body_arg)) => {
-            return AST::Function(FunctionAST::new(proto_arg, body_arg))
-        }
-        _ => return AST::Null,
-    };
+    return AST::Function(FunctionAST::new(proto, body));
 }
 
 // toplevelexpr ::= expression
@@ -210,12 +193,7 @@ fn parse_top_level_expr(state: &mut State) -> AST {
     let proto = AST::Prototype(PrototypeAST::new(String::from(""), vec![]));
     let body = parse_expression(state);
 
-    match (proto, body) {
-        (AST::Prototype(proto_arg), AST::Expr(body_arg)) => {
-            return AST::Function(FunctionAST::new(proto_arg, body_arg))
-        }
-        _ => return AST::Null,
-    };
+    return AST::Function(FunctionAST::new(proto, body));
 }
 
 // external ::= 'extern' prototype
@@ -232,9 +210,7 @@ fn handle_defintion(state: &mut State) {
         // Skip the token for error recovery
         get_next_token(state);
     } else {
-        println!("Parsed a function definition {}.", node);
-        println!("Current token is {:?}.", state.cur_tok);
-        println!("Last char is {:?}.", state.last_char);
+        println!("Parsed a function definition.");
     }
 }
 
@@ -245,9 +221,7 @@ fn handle_extern(state: &mut State) {
         // Skip the token for error recovery
         get_next_token(state);
     } else {
-        println!("Parsed an extern {}.", node);
-        println!("Current token is {:?}.", state.cur_tok);
-        println!("Last char is {:?}.", state.last_char);
+        println!("Parsed an extern.");
     }
 }
 
@@ -258,9 +232,7 @@ fn handle_top_level_expression(state: &mut State) {
         // Skip the token for error recovery
         get_next_token(state);
     } else {
-        println!("Parsed a top-level expression {}.", node);
-        println!("Current token is {:?}.", state.cur_tok);
-        println!("Last char is {:?}.", state.last_char);
+        println!("Parsed a top-level expression.");
     }
 }
 

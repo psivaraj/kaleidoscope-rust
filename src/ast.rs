@@ -20,60 +20,68 @@ pub enum Token {
 #[derive(Debug)]
 pub enum AST {
     Null,
-    Expr(ExprAST),
+    Number(NumberExprAST),
+    Variable(VariableExprAST),
+    Binary(BinaryExprAST),
+    Call(CallExprAST),
     Prototype(PrototypeAST),
     Function(FunctionAST),
 }
 
-impl fmt::Display for AST {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            AST::Null => write!(f, "Null"),
-            AST::Expr(val) => write!(f, "{}", val),
-            AST::Prototype(val) => write!(f, "{}", val),
-            AST::Function(val) => write!(f, "{}", val),
-        }
+// NumberExprAST - Expression class for numeric literals like "1.0".
+#[derive(Debug)]
+pub struct NumberExprAST {
+    val: f64,
+}
+
+impl NumberExprAST {
+    pub fn new(val: f64) -> Self {
+        return NumberExprAST { val: val };
     }
 }
 
-#[derive(Debug, Clone)]
-pub enum ExprAST {
-    // NumberExprAST - Expression class for numeric literals like "1.0".
-    NumberExprAST {
-        val: f64,
-    },
-
-    // VariableExprAST - Expression class for referencing a variable, like "a".
-    VariableExprAST {
-        name: String,
-    },
-
-    // BinaryExprAST - Expression class for a binary operator.
-    BinaryExprAST {
-        op: char,
-        lhs: Box<ExprAST>, // #TODO: Should be an ExprAST
-        rhs: Box<ExprAST>,
-    },
-
-    // CallExprAST - Expression class for function calls.
-    CallExprAST {
-        callee: String,
-        args: Vec<Box<ExprAST>>, // #TODO: This should be a vector of ExprAST
-    },
+// VariableExprAST - Expression class for referencing a variable, like "a".
+#[derive(Debug)]
+pub struct VariableExprAST {
+    name: String,
 }
 
-impl fmt::Display for ExprAST {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ExprAST::NumberExprAST { val } => write!(f, "NumberExprAST({val})"),
-            ExprAST::VariableExprAST { name } => write!(f, "VariableExprAST({name})"),
-            ExprAST::BinaryExprAST { op, lhs, rhs } => {
-                write!(f, "BinaryExprAST({op}, {lhs}, {rhs})")
-            }
-            ExprAST::CallExprAST { callee, args } => {
-                write!(f, "BinaryExprAST({callee}, {:?})", args)
-            }
-        }
+impl VariableExprAST {
+    pub fn new(name: String) -> Self {
+        return VariableExprAST { name: name };
+    }
+}
+
+// BinaryExprAST - Expression class for a binary operator.
+#[derive(Debug)]
+pub struct BinaryExprAST {
+    op: char,
+    lhs: Box<AST>, // #TODO: Should be an ExprAST
+    rhs: Box<AST>,
+}
+
+// TODO: Limit this to ExprAST types using generics, marker traits, etc..
+impl BinaryExprAST {
+    pub fn new(op: char, lhs: AST, rhs: AST) -> Self {
+        return BinaryExprAST {
+            op: op,
+            lhs: Box::new(lhs),
+            rhs: Box::new(rhs),
+        };
+    }
+}
+
+// CallExprAST - Expression class for function calls.
+// TODO: Limit args to ExprAST types using generics, marker traits, etc..
+#[derive(Debug)]
+pub struct CallExprAST {
+    callee: String,
+    args: Vec<Box<AST>>,
+}
+
+impl CallExprAST {
+    pub fn new(callee: String, args: Vec<Box<AST>>) -> Self {
+        return CallExprAST { callee: callee, args: args };
     }
 }
 
@@ -90,6 +98,7 @@ impl PrototypeAST {
     pub fn get_name(&self) -> &str {
         &self.name
     }
+
     pub fn new(name: String, args: Vec<String>) -> Self {
         PrototypeAST {
             name: name,
@@ -98,30 +107,25 @@ impl PrototypeAST {
     }
 }
 
-impl fmt::Display for PrototypeAST {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "PrototypeAST({}, {:?})", self.name, self.args)
-    }
-}
-
 // FunctionAST - This class represents a function definition itself.
+// TODO: Limit proto and body to specific subsets using generics, marker traits, etc.. rather
+// than checking at run-time.
 #[derive(Debug)]
 pub struct FunctionAST {
-    proto: PrototypeAST,
-    body: ExprAST,
+    proto: Box<AST>,
+    body: Box<AST>,
 }
 
 impl FunctionAST {
-    pub fn new(proto: PrototypeAST, body: ExprAST) -> Self {
+    pub fn new(proto: AST, body: AST) -> Self {
+        assert!(matches!(proto, AST::Prototype(_)));
+        assert!(matches!(
+            body,
+            AST::Number(_) | AST::Variable(_) | AST::Binary(_) | AST::Call(_)
+        ));
         FunctionAST {
-            proto: proto,
-            body: body,
+            proto: Box::new(proto),
+            body: Box::new(body),
         }
-    }
-}
-
-impl fmt::Display for FunctionAST {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "FunctionAST({}, {})", self.proto, self.body)
     }
 }
