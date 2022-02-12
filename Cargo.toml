@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 libc = "0.2.0"
+inkwell = { git = "https://github.com/TheDan64/inkwell", branch = "master", features = ["llvm12-0"] }

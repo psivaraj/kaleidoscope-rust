@@ -1,8 +1,12 @@
-use std::fmt;
+use crate::State;
+use inkwell::values::FloatValue;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
+    // default null
     TokUndef,
+
+    // end of file
     TokEOF,
 
     // commands
@@ -36,7 +40,11 @@ pub struct NumberExprAST {
 
 impl NumberExprAST {
     pub fn new(val: f64) -> Self {
-        return NumberExprAST { val: val };
+        return NumberExprAST { val };
+    }
+
+    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> FloatValue<'ctx> {
+        state.context.f64_type().const_float(self.val)
     }
 }
 
@@ -48,7 +56,7 @@ pub struct VariableExprAST {
 
 impl VariableExprAST {
     pub fn new(name: String) -> Self {
-        return VariableExprAST { name: name };
+        return VariableExprAST { name };
     }
 }
 
@@ -81,7 +89,7 @@ pub struct CallExprAST {
 
 impl CallExprAST {
     pub fn new(callee: String, args: Vec<Box<AST>>) -> Self {
-        return CallExprAST { callee: callee, args: args };
+        return CallExprAST { callee, args };
     }
 }
 
@@ -101,8 +109,8 @@ impl PrototypeAST {
 
     pub fn new(name: String, args: Vec<String>) -> Self {
         PrototypeAST {
-            name: name,
-            args: args,
+            name,
+            args,
         }
     }
 }
