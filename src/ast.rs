@@ -1,5 +1,6 @@
 use core::panic;
 use core::slice::SlicePattern;
+use std::ops::Deref;
 
 use crate::State;
 use inkwell::types::BasicMetadataTypeEnum;
@@ -211,6 +212,45 @@ impl FunctionAST {
             body: Box::new(body),
         }
     }
+
+    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FunctionValue<'ctx> {
+        // Get the proto body
+        let proto = match *self.proto {
+            AST::Prototype(val) => val,
+            _ => panic!(
+                "FunctionAST code generation failure, expected a ProtoTypeAST for proto field."
+            ),
+        };
+
+        let mut func_value = state.module.get_function(proto.name.as_str());
+        let func_value = match func_value {
+            Some(func_value) => func_value,
+            None => proto.codegen(state),
+        };
+
+        assert!(func_value.is_null(), "Function cannot be redefined");
+
+        let basic_block = state.context.append_basic_block(func_value, "entry");
+        state.builder.position_at_end(basic_block);
+
+        state.named_values.clear();
+        for arg in func_value.get_param_iter() {
+            let arg_name = arg.into_float_value().get_name().to_str().unwrap();
+            state
+                .named_values
+                .insert(arg_name.to_string(), arg.into_float_value());
+        }
+
+        let retval = codegen(state, &*self.body);
+        state.builder.build_return(Some(&retval));
+
+        assert!(
+            func_value.verify(false),
+            "FunctionAST code generation failure. LLVM could not verify function."
+        );
+
+        return func_value;
+    }
 }
 
 // General code generation function
@@ -219,7 +259,7 @@ pub fn codegen<'ctx>(state: &State<'ctx>, node: &AST) -> FloatValue<'ctx> {
         AST::Number(inner_val) => inner_val.codegen(state),
         AST::Variable(inner_val) => inner_val.codegen(state),
         AST::Binary(inner_val) => inner_val.codegen(state),
-        // AST::Call(inner_val) => inner_val.codegen(state),
+        AST::Call(inner_val) => inner_val.codegen(state),
         _ => panic!(
             "BinaryExprAST code generation failure. Could not find key `{:?}`",
             node
