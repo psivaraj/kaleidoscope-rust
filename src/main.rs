@@ -4,8 +4,8 @@ mod parser;
 
 use std::collections::HashMap;
 
-use ast::{Token, AST};
 use ast::{NumberExprAST, VariableExprAST};
+use ast::{Token, AST};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
@@ -59,7 +59,6 @@ fn main() {
     //lexer::get_next_token(&mut state);
     //main_loop(&mut state);
 }
-
 
 // TODO: You are currently about to test the CallExprAST, for which you just finished implementing the
 // the codegen, but have yet to test.

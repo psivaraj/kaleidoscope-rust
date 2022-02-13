@@ -1,7 +1,6 @@
 use core::panic;
 
 use crate::State;
-use inkwell::types::FloatMathType;
 use inkwell::values::FloatValue;
 use inkwell::FloatPredicate::OLT;
 
@@ -103,7 +102,10 @@ impl BinaryExprAST {
                     .builder
                     .build_unsigned_int_to_float(l, state.context.f64_type(), "booltmp")
             }
-            _ => panic!("BinaryExprAST code generation failure. The operation {} is not supported", self.op)
+            _ => panic!(
+                "BinaryExprAST code generation failure. The operation {} is not supported",
+                self.op
+            ),
         }
     }
 }
@@ -120,10 +122,10 @@ impl CallExprAST {
     pub fn new(callee: String, args: Vec<Box<AST>>) -> Self {
         return CallExprAST { callee, args };
     }
-    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> () {
+    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FloatValue<'ctx> {
         let val = state.module.get_function(self.callee.as_str());
         let func_val = match val {
-            Some(float_val) => float_val,
+            Some(func_val) => func_val,
             None => panic!("CallExprAST code generation failure. Unknown function referenced"),
         };
         if func_val.count_params() != self.args.len().try_into().unwrap() {
@@ -135,8 +137,13 @@ impl CallExprAST {
             args_v.push(codegen(state, arg).into())
         }
 
-        state.builder.build_call(func_val, args_v.as_slice(), "calltmp");
-
+        let call_site_val = state
+            .builder
+            .build_call(func_val, args_v.as_slice(), "calltmp");
+        call_site_val
+            .try_as_basic_value()
+            .unwrap_left()
+            .into_float_value()
     }
 }
 
@@ -189,6 +196,9 @@ pub fn codegen<'ctx>(state: &State<'ctx>, node: &AST) -> FloatValue<'ctx> {
         AST::Variable(inner_val) => inner_val.codegen(state),
         AST::Binary(inner_val) => inner_val.codegen(state),
         // AST::Call(inner_val) => inner_val.codegen(state),
-        _ => panic!("BinaryExprAST code generation failure. Could not find key `{:?}`", node)
+        _ => panic!(
+            "BinaryExprAST code generation failure. Could not find key `{:?}`",
+            node
+        ),
     }
 }
