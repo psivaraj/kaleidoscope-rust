@@ -1,6 +1,8 @@
+use inkwell::values::AnyValue;
+
 use crate::ast::{
     BinaryExprAST, CallExprAST, FunctionAST, NumberExprAST, PrototypeAST, Token, VariableExprAST,
-    AST,
+    AST, codegen,
 };
 use crate::lexer::get_next_token;
 use crate::State;
@@ -203,7 +205,7 @@ fn parse_extern(state: &mut State) -> AST {
 }
 
 // TODO: You are at the point of understanding and building static void MainLoop() {
-fn handle_defintion(state: &mut State) {
+fn handle_definition(state: &mut State) {
     let node = parse_definition(state);
 
     if matches!(node, AST::Null) {
@@ -211,6 +213,8 @@ fn handle_defintion(state: &mut State) {
         get_next_token(state);
     } else {
         println!("Parsed a function definition.");
+        let ir = codegen(state, &node);
+        println!("{}", ir.print_to_string());
     }
 }
 
@@ -222,6 +226,8 @@ fn handle_extern(state: &mut State) {
         get_next_token(state);
     } else {
         println!("Parsed an extern.");
+        let ir = codegen(state, &node);
+        println!("{}", ir.print_to_string());
     }
 }
 
@@ -233,6 +239,9 @@ fn handle_top_level_expression(state: &mut State) {
         get_next_token(state);
     } else {
         println!("Parsed a top-level expression.");
+        let ir = codegen(state, &node);
+        println!("{}", ir.print_to_string());
+        // TODO: Remove the anonymous expression.
     }
 }
 
@@ -242,7 +251,7 @@ pub fn main_loop(state: &mut State) {
         match state.cur_tok {
             Token::TokEOF => break,
             Token::TokChar(';') => get_next_token(state),
-            Token::TokDef => handle_defintion(state),
+            Token::TokDef => handle_definition(state),
             Token::TokExtern => handle_extern(state),
             _ => handle_top_level_expression(state),
         }

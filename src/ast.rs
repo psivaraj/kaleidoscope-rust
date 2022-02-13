@@ -1,9 +1,4 @@
-use core::panic;
-use core::slice::SlicePattern;
-use std::ops::Deref;
-
 use crate::State;
-use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::values::{BasicValue, FloatValue, FunctionValue};
 use inkwell::FloatPredicate::OLT;
 
@@ -213,9 +208,9 @@ impl FunctionAST {
         }
     }
 
-    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FunctionValue<'ctx> {
+    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> FunctionValue<'ctx> {
         // Get the proto body
-        let proto = match *self.proto {
+        let proto = match &*self.proto {
             AST::Prototype(val) => val,
             _ => panic!(
                 "FunctionAST code generation failure, expected a ProtoTypeAST for proto field."
@@ -235,10 +230,11 @@ impl FunctionAST {
 
         state.named_values.clear();
         for arg in func_value.get_param_iter() {
-            let arg_name = arg.into_float_value().get_name().to_str().unwrap();
+            let arg_float_val = arg.into_float_value();
+            let arg_name = arg_float_val.get_name().to_str().unwrap();
             state
                 .named_values
-                .insert(arg_name.to_string(), arg.into_float_value());
+                .insert(arg_name.to_string(), arg_float_val);
         }
 
         let retval = codegen(state, &*self.body);
