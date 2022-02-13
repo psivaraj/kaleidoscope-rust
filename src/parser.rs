@@ -103,13 +103,14 @@ fn parse_primary(state: &mut State) -> AST {
 }
 
 fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: AST) -> AST {
+    let mut lhs_loop = lhs;
     loop {
         let tok_prec = get_tok_precedence(&state.cur_tok);
 
         // If this is a binop that binds at least as tightly as the current binop,
         // consume it, otherwise we are done.
         if tok_prec < expr_prec {
-            return lhs;
+            return lhs_loop;
         }
 
         // Okay, we know this is a binop.
@@ -134,7 +135,7 @@ fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: AST) -> AST {
             rhs = parse_bin_op_rhs(state, tok_prec + 1, rhs);
         }
 
-        return AST::Binary(BinaryExprAST::new(binop, lhs, rhs));
+        lhs_loop = AST::Binary(BinaryExprAST::new(binop, lhs_loop, rhs));
     }
 }
 

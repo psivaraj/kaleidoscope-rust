@@ -164,7 +164,7 @@ impl PrototypeAST {
         PrototypeAST { name, args }
     }
 
-    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FunctionValue<'ctx> {
+    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> AnyValueEnum<'ctx> {
         let mut param_types = Vec::new();
         for arg in &self.args {
             param_types.push(state.context.f64_type().into())
@@ -183,7 +183,7 @@ impl PrototypeAST {
             arg.into_float_value().set_name(self.args[i].as_str());
         }
 
-        return func;
+        return func.into();
     }
 }
 
@@ -221,7 +221,7 @@ impl FunctionAST {
         let func_value = state.module.get_function(proto.name.as_str());
         let func_value = match func_value {
             Some(func_value) => func_value,
-            None => proto.codegen(state),
+            None => proto.codegen(state).into_function_value(),
         };
 
         let basic_block = state.context.append_basic_block(func_value, "entry");
@@ -256,6 +256,7 @@ pub fn codegen<'ctx>(state: &mut State<'ctx>, node: &AST) -> AnyValueEnum<'ctx> 
         AST::Binary(inner_val) => inner_val.codegen(state),
         AST::Call(inner_val) => inner_val.codegen(state),
         AST::Function(inner_val) => inner_val.codegen(state),
+        AST::Prototype(inner_val) => inner_val.codegen(state),
         _ => panic!(
             "General code generation failure. Could not find key `{:?}`",
             node

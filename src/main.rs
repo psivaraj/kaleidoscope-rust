@@ -48,5 +48,4 @@ fn main() {
     println!("{}", state.module.print_to_string());
 }
 
-// TODO: You are currently about to test the CallExprAST, for which you just finished implementing the
-// the codegen, but have yet to test.
+// TODO: You are ready to start Chapter 4.
