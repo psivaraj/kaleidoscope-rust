@@ -214,7 +214,7 @@ fn handle_definition(state: &mut State) {
     } else {
         println!("Parsed a function definition.");
         let ir = codegen(state, &node);
-        println!("{}", ir.print_to_string());
+        print!("{}", ir.print_to_string().to_str().unwrap());
     }
 }
 
@@ -227,7 +227,7 @@ fn handle_extern(state: &mut State) {
     } else {
         println!("Parsed an extern.");
         let ir = codegen(state, &node);
-        println!("{}", ir.print_to_string());
+        print!("{}", ir.print_to_string().to_str().unwrap());
     }
 }
 
@@ -240,7 +240,7 @@ fn handle_top_level_expression(state: &mut State) {
     } else {
         println!("Parsed a top-level expression.");
         let ir = codegen(state, &node);
-        println!("{}", ir.print_to_string());
+        print!("{}", ir.print_to_string().to_str().unwrap());
         // TODO: Remove the anonymous expression.
     }
 }
