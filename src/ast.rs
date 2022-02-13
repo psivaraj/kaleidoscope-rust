@@ -218,13 +218,11 @@ impl FunctionAST {
             ),
         };
 
-        let mut func_value = state.module.get_function(proto.name.as_str());
+        let func_value = state.module.get_function(proto.name.as_str());
         let func_value = match func_value {
             Some(func_value) => func_value,
             None => proto.codegen(state),
         };
-
-        assert!(func_value.is_null(), "Function cannot be redefined");
 
         let basic_block = state.context.append_basic_block(func_value, "entry");
         state.builder.position_at_end(basic_block);
