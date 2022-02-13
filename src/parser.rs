@@ -1,8 +1,8 @@
 use inkwell::values::AnyValue;
 
 use crate::ast::{
-    BinaryExprAST, CallExprAST, FunctionAST, NumberExprAST, PrototypeAST, Token, VariableExprAST,
-    AST, codegen,
+    codegen, BinaryExprAST, CallExprAST, FunctionAST, NumberExprAST, PrototypeAST, Token,
+    VariableExprAST, AST,
 };
 use crate::lexer::get_next_token;
 use crate::State;

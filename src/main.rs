@@ -5,11 +5,11 @@ mod parser;
 use std::collections::HashMap;
 
 use ast::Token;
-use parser::main_loop;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::values::FloatValue;
+use parser::main_loop;
 
 pub struct State<'ctx> {
     pub cur_tok: Token,
@@ -42,7 +42,7 @@ fn main() {
     // Prime the first token
     lexer::get_next_token(&mut state);
 
-      // Run the main "interpreter loop" now.
+    // Run the main "interpreter loop" now.
     main_loop(&mut state);
 
     println!("{}", state.module.print_to_string());

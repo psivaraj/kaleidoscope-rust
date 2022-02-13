@@ -1,5 +1,5 @@
 use crate::State;
-use inkwell::values::{BasicValue, FloatValue, FunctionValue};
+use inkwell::values::{BasicValue, AnyValueEnum, FunctionValue};
 use inkwell::FloatPredicate::OLT;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,8 +43,8 @@ impl NumberExprAST {
         return NumberExprAST { val };
     }
 
-    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FloatValue<'ctx> {
-        state.context.f64_type().const_float(self.val)
+    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> AnyValueEnum<'ctx> {
+        state.context.f64_type().const_float(self.val).into()
     }
 }
 
@@ -58,10 +58,10 @@ impl VariableExprAST {
     pub fn new(name: String) -> Self {
         return VariableExprAST { name };
     }
-    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FloatValue<'ctx> {
+    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> AnyValueEnum<'ctx> {
         let val = state.named_values.get(&self.name);
         match val {
-            Some(float_val) => *float_val,
+            Some(float_val) => (*float_val).into(),
             None => panic!(
                 "VariableExprAST code generation failure. Could not find key `{}`",
                 self.name
@@ -87,18 +87,19 @@ impl BinaryExprAST {
             rhs: Box::new(rhs),
         };
     }
-    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FloatValue<'ctx> {
-        let lhs = codegen(state, self.lhs.as_ref());
-        let rhs = codegen(state, self.rhs.as_ref());
+    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> AnyValueEnum<'ctx> {
+        let lhs = codegen(state, self.lhs.as_ref()).into_float_value();
+        let rhs = codegen(state, self.rhs.as_ref()).into_float_value();
         match self.op {
-            '+' => state.builder.build_float_add(lhs, rhs, "addtmp"),
-            '-' => state.builder.build_float_sub(lhs, rhs, "subtmp"),
-            '*' => state.builder.build_float_mul(lhs, rhs, "multmp"),
+            '+' => state.builder.build_float_add(lhs, rhs, "addtmp").into(),
+            '-' => state.builder.build_float_sub(lhs, rhs, "subtmp").into(),
+            '*' => state.builder.build_float_mul(lhs, rhs, "multmp").into(),
             '<' => {
                 let l = state.builder.build_float_compare(OLT, lhs, rhs, "cmptmp");
                 state
                     .builder
                     .build_unsigned_int_to_float(l, state.context.f64_type(), "booltmp")
+                    .into()
             }
             _ => panic!(
                 "BinaryExprAST code generation failure. The operation {} is not supported",
@@ -120,7 +121,7 @@ impl CallExprAST {
     pub fn new(callee: String, args: Vec<Box<AST>>) -> Self {
         return CallExprAST { callee, args };
     }
-    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FloatValue<'ctx> {
+    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> AnyValueEnum<'ctx> {
         let val = state.module.get_function(self.callee.as_str());
         let func_val = match val {
             Some(func_val) => func_val,
@@ -132,7 +133,7 @@ impl CallExprAST {
 
         let mut args_v = Vec::new();
         for arg in &self.args {
-            args_v.push(codegen(state, arg).into())
+            args_v.push(codegen(state, arg).into_float_value().into())
         }
 
         let call_site_val = state
@@ -141,7 +142,7 @@ impl CallExprAST {
         call_site_val
             .try_as_basic_value()
             .unwrap_left()
-            .into_float_value()
+            .into_float_value().into()
     }
 }
 
@@ -208,7 +209,7 @@ impl FunctionAST {
         }
     }
 
-    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> FunctionValue<'ctx> {
+    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> AnyValueEnum<'ctx> {
         // Get the proto body
         let proto = match &*self.proto {
             AST::Prototype(val) => val,
@@ -237,7 +238,7 @@ impl FunctionAST {
                 .insert(arg_name.to_string(), arg_float_val);
         }
 
-        let retval = codegen(state, &*self.body);
+        let retval = codegen(state, &*self.body).into_float_value();
         state.builder.build_return(Some(&retval));
 
         assert!(
@@ -245,19 +246,20 @@ impl FunctionAST {
             "FunctionAST code generation failure. LLVM could not verify function."
         );
 
-        return func_value;
+        return func_value.into();
     }
 }
 
 // General code generation function
-pub fn codegen<'ctx>(state: &State<'ctx>, node: &AST) -> FloatValue<'ctx> {
+pub fn codegen<'ctx>(state: &mut State<'ctx>, node: &AST) -> AnyValueEnum<'ctx> {
     match node {
         AST::Number(inner_val) => inner_val.codegen(state),
         AST::Variable(inner_val) => inner_val.codegen(state),
         AST::Binary(inner_val) => inner_val.codegen(state),
         AST::Call(inner_val) => inner_val.codegen(state),
+        AST::Function(inner_val) => inner_val.codegen(state),
         _ => panic!(
-            "BinaryExprAST code generation failure. Could not find key `{:?}`",
+            "General code generation failure. Could not find key `{:?}`",
             node
         ),
     }
