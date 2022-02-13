@@ -45,13 +45,13 @@ fn main() {
     let node_var = VariableExprAST::new(String::from("Hello"));
     let node_num1 = NumberExprAST::new(4.);
     let node_num2 = NumberExprAST::new(2.);
-    let mut fp_val1 = node_num1.codegen(&mut state);
+    let mut fp_val1 = node_num1.codegen(&state);
     state.named_values.insert(String::from("Hello"), fp_val1);
-    let mut fp_val2 = node_var.codegen(&mut state);
+    let mut fp_val2 = node_var.codegen(&state);
     println!("{:?}", fp_val2);
 
     let node_bin_expr = BinaryExprAST::new('+', AST::Number(node_num1), AST::Number(node_num2));
-    let func_val = node_bin_expr.codegen(&mut state);
+    let func_val = node_bin_expr.codegen(&state);
     println!("{:?}", func_val);
     // DELETE: Just testing code
 

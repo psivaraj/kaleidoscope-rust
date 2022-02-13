@@ -46,7 +46,7 @@ impl NumberExprAST {
         return NumberExprAST { val };
     }
 
-    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> FloatValue<'ctx> {
+    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FloatValue<'ctx> {
         state.context.f64_type().const_float(self.val)
     }
 }
@@ -61,7 +61,7 @@ impl VariableExprAST {
     pub fn new(name: String) -> Self {
         return VariableExprAST { name };
     }
-    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> FloatValue<'ctx> {
+    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FloatValue<'ctx> {
         let val = state.named_values.get(&self.name);
         match val {
             Some(float_val) => *float_val,
@@ -90,7 +90,7 @@ impl BinaryExprAST {
             rhs: Box::new(rhs),
         };
     }
-    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> FloatValue<'ctx> {
+    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FloatValue<'ctx> {
         let lhs = codegen(state, self.lhs.as_ref());
         let rhs = codegen(state, self.rhs.as_ref());
         match self.op {
@@ -120,7 +120,7 @@ impl CallExprAST {
     pub fn new(callee: String, args: Vec<Box<AST>>) -> Self {
         return CallExprAST { callee, args };
     }
-    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> () {
+    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> () {
         let val = state.module.get_function(self.callee.as_str());
         let func_val = match val {
             Some(float_val) => float_val,
@@ -183,7 +183,7 @@ impl FunctionAST {
 }
 
 // General code generation function
-pub fn codegen<'ctx>(state: &mut State<'ctx>, node: &AST) -> FloatValue<'ctx> {
+pub fn codegen<'ctx>(state: &State<'ctx>, node: &AST) -> FloatValue<'ctx> {
     match node {
         AST::Number(inner_val) => inner_val.codegen(state),
         AST::Variable(inner_val) => inner_val.codegen(state),
