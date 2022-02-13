@@ -1,7 +1,9 @@
 use core::panic;
+use core::slice::SlicePattern;
 
 use crate::State;
-use inkwell::values::FloatValue;
+use inkwell::types::BasicMetadataTypeEnum;
+use inkwell::values::{BasicValue, FloatValue, FunctionValue};
 use inkwell::FloatPredicate::OLT;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -163,6 +165,28 @@ impl PrototypeAST {
 
     pub fn new(name: String, args: Vec<String>) -> Self {
         PrototypeAST { name, args }
+    }
+
+    pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> FunctionValue<'ctx> {
+        let mut param_types = Vec::new();
+        for arg in &self.args {
+            param_types.push(state.context.f64_type().into())
+        }
+
+        let func_type = state
+            .context
+            .f64_type()
+            .fn_type(param_types.as_slice(), false);
+
+        let func = state
+            .module
+            .add_function(self.name.as_str(), func_type, None);
+
+        for (i, arg) in func.get_param_iter().enumerate() {
+            arg.into_float_value().set_name(self.args[i].as_str());
+        }
+
+        return func;
     }
 }
 
