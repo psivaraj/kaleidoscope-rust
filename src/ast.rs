@@ -1,5 +1,4 @@
 use core::panic;
-use core::slice::SlicePattern;
 
 use crate::State;
 use inkwell::types::FloatMathType;
@@ -92,21 +91,8 @@ impl BinaryExprAST {
         };
     }
     pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> FloatValue<'ctx> {
-        // TODO: Avoid duplication
-        let lhs = match &*self.lhs {
-            AST::Number(inner_val) => inner_val.codegen(state),
-            AST::Variable(inner_val) => inner_val.codegen(state),
-            AST::Binary(inner_val) => inner_val.codegen(state),
-            // AST::Call(inner_val) => inner_val.codegen(state),
-            _ => panic!("BinaryExprAST code generation failure. Could not find key `{:?}`",*self.lhs)
-        };
-        let rhs = match &*self.rhs {
-            AST::Number(inner_val) => inner_val.codegen(state),
-            AST::Variable(inner_val) => inner_val.codegen(state),
-            AST::Binary(inner_val) => inner_val.codegen(state),
-            // AST::Call(inner_val) => inner_val.codegen(state),
-            _ => panic!("BinaryExprAST code generation failure. Could not find key `{:?}`",*self.rhs)
-        };
+        let lhs = codegen(state, self.lhs.as_ref());
+        let rhs = codegen(state, self.rhs.as_ref());
         match self.op {
             '+' => state.builder.build_float_add(lhs, rhs, "addtmp"),
             '-' => state.builder.build_float_sub(lhs, rhs, "subtmp"),
@@ -144,8 +130,8 @@ impl CallExprAST {
             panic!("CallExprAST code generation failure. Incorrect # of arguments passed.");
         }
 
-        let args_v = Vec::new();
-        for arg in &mut self.args {
+        let mut args_v = Vec::new();
+        for arg in &self.args {
             args_v.push(codegen(state, arg).into())
         }
 
@@ -197,7 +183,7 @@ impl FunctionAST {
 }
 
 // General code generation function
-pub fn codegen<'ctx>(state: &mut State<'ctx>, node: &mut AST) -> FloatValue<'ctx> {
+pub fn codegen<'ctx>(state: &mut State<'ctx>, node: &AST) -> FloatValue<'ctx> {
     match node {
         AST::Number(inner_val) => inner_val.codegen(state),
         AST::Variable(inner_val) => inner_val.codegen(state),

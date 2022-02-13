@@ -53,8 +53,13 @@ fn main() {
     let node_bin_expr = BinaryExprAST::new('+', AST::Number(node_num1), AST::Number(node_num2));
     let func_val = node_bin_expr.codegen(&mut state);
     println!("{:?}", func_val);
+    // DELETE: Just testing code
 
     // Prime the first token
     //lexer::get_next_token(&mut state);
     //main_loop(&mut state);
 }
+
+
+// TODO: You are currently about to test the CallExprAST, for which you just finished implementing the
+// the codegen, but have yet to test.
