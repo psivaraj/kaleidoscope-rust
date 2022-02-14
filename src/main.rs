@@ -8,7 +8,8 @@ use ast::Token;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
-use inkwell::values::FloatValue;
+use inkwell::passes::PassManager;
+use inkwell::values::{FloatValue, FunctionValue};
 use parser::main_loop;
 
 pub struct State<'ctx> {
@@ -17,17 +18,28 @@ pub struct State<'ctx> {
     pub context: &'ctx Context,
     pub builder: Builder<'ctx>,
     pub module: Module<'ctx>,
+    pub fpm: PassManager<FunctionValue<'ctx>>,
     pub named_values: HashMap<String, FloatValue<'ctx>>,
 }
 
 impl<'ctx> State<'ctx> {
-    pub fn new(context: &'ctx Context) -> State<'ctx> {
+    pub fn new(context: &'ctx Context, module: Module<'ctx>, fpm: PassManager<FunctionValue<'ctx>>) -> State<'ctx> {
+        // Do simple "peephole" optimizations and bit-twiddling optzns.
+        fpm.add_instruction_combining_pass();
+        // Reassociate expressions.
+        fpm.add_reassociate_pass();
+        // Eliminate Common SubExpressions.
+        fpm.add_gvn_pass();
+        // Simplify the control flow graph (deleting unreachable blocks, etc).
+        fpm.add_cfg_simplification_pass();
+        fpm.initialize();
         State {
             cur_tok: Token::TokUndef,
             last_char: ' ',
             context,
             builder: context.create_builder(),
-            module: context.create_module("kaleidoscope"),
+            module,
+            fpm,
             named_values: HashMap::new(),
         }
     }
@@ -36,7 +48,9 @@ impl<'ctx> State<'ctx> {
 fn main() {
     // Statements here are executed when the compiled binary is called
     let context = Context::create();
-    let mut state = State::new(&context);
+    let module = context.create_module("kaleidoscope");
+    let fpm: PassManager<FunctionValue> = PassManager::create(&module);
+    let mut state = State::new(&context, module, fpm);
     println!("ready> ");
 
     // Prime the first token

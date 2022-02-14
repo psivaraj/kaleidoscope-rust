@@ -244,6 +244,8 @@ impl FunctionAST {
             "FunctionAST code generation failure. LLVM could not verify function."
         );
 
+        state.fpm.run_on(&func_value);
+
         return func_value.into();
     }
 }
