@@ -122,11 +122,7 @@ impl CallExprAST {
         return CallExprAST { callee, args };
     }
     pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> AnyValueEnum<'ctx> {
-        let val = state.module.get_function(self.callee.as_str());
-        let func_val = match val {
-            Some(func_val) => func_val,
-            None => panic!("CallExprAST code generation failure. Unknown function referenced"),
-        };
+        let func_val = get_function(state, self.callee.as_str());
         if func_val.count_params() != self.args.len().try_into().unwrap() {
             panic!("CallExprAST code generation failure. Incorrect # of arguments passed.");
         }
@@ -150,7 +146,7 @@ impl CallExprAST {
 // PrototypeAST - This class represents the "prototype" for a function,
 // which captures its name, and its argument names (thus implicitly the number
 // of arguments the function takes).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PrototypeAST {
     name: String,
     args: Vec<String>,
@@ -212,19 +208,21 @@ impl FunctionAST {
 
     pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> AnyValueEnum<'ctx> {
         // Get the proto body
-        let proto = match &*self.proto {
+        let proto = match self.proto.as_ref() {
             AST::Prototype(val) => val,
             _ => panic!(
                 "FunctionAST code generation failure, expected a ProtoTypeAST for proto field."
             ),
         };
 
-        let func_value = state.module.get_function(proto.name.as_str());
-        let func_value = match func_value {
-            Some(func_value) => func_value,
-            None => proto.codegen(state).into_function_value(),
-        };
+        // Transfer ownership of the prototype to the FunctionProtos map
+        state
+            .function_protos
+            .insert(proto.get_name().to_string(), proto.clone());
 
+        let func_value = get_function(state, proto.get_name());
+
+        // Create a new basic block to start insertion into.
         let basic_block = state.context.append_basic_block(func_value, "entry");
         state.builder.position_at_end(basic_block);
 
@@ -264,5 +262,19 @@ pub fn codegen<'ctx>(state: &mut State<'ctx>, node: &AST) -> AnyValueEnum<'ctx> 
             "General code generation failure. Could not find key `{:?}`",
             node
         ),
+    }
+}
+
+// General helper to get function
+pub fn get_function<'ctx>(state: &mut State<'ctx>, name: &str) -> FunctionValue<'ctx> {
+    let val = state.module.get_function(name);
+    if let Some(func_val) = val {
+        return func_val;
+    };
+
+    let proto_some = state.function_protos.get(&name.to_string());
+    match proto_some {
+        Some(proto) => return proto.codegen(state).into_function_value(),
+        None => panic!("get_function failure. Could not find key `{name}`",),
     }
 }

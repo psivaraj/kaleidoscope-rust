@@ -4,7 +4,7 @@ mod parser;
 
 use std::collections::HashMap;
 
-use ast::Token;
+use ast::{PrototypeAST, Token};
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
@@ -20,6 +20,7 @@ pub struct State<'ctx> {
     pub module: Module<'ctx>,
     pub fpm: PassManager<FunctionValue<'ctx>>,
     pub named_values: HashMap<String, FloatValue<'ctx>>,
+    pub function_protos: HashMap<String, PrototypeAST>,
 }
 
 impl<'ctx> State<'ctx> {
@@ -44,6 +45,7 @@ impl<'ctx> State<'ctx> {
             module,
             fpm,
             named_values: HashMap::new(),
+            function_protos: HashMap::new(),
         }
     }
 }

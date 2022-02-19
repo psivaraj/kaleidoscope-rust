@@ -1,11 +1,11 @@
-use inkwell::values::AnyValue;
-use inkwell::OptimizationLevel;
 use crate::ast::{
     codegen, BinaryExprAST, CallExprAST, FunctionAST, NumberExprAST, PrototypeAST, Token,
     VariableExprAST, AST,
 };
 use crate::lexer::get_next_token;
 use crate::State;
+use inkwell::values::AnyValue;
+use inkwell::OptimizationLevel;
 
 pub fn get_tok_precedence(token: &Token) -> i32 {
     match token {
@@ -205,7 +205,6 @@ fn parse_extern(state: &mut State) -> AST {
     return parse_prototype(state);
 }
 
-// TODO: You are at the point of understanding and building static void MainLoop() {
 fn handle_definition(state: &mut State) {
     let node = parse_definition(state);
 
@@ -233,7 +232,7 @@ fn handle_extern(state: &mut State) {
 }
 
 fn handle_top_level_expression(state: &mut State) {
-    let temp_module = state.module.clone();//state.context.create_module("kaleidoscope");
+    let temp_module = state.module.clone();
     let node = parse_top_level_expr(state);
 
     if matches!(node, AST::Null) {
@@ -244,7 +243,10 @@ fn handle_top_level_expression(state: &mut State) {
         let ir = codegen(state, &node);
         println!("{}", ir.print_to_string().to_str().unwrap());
         unsafe {
-            let ee = state.module.create_jit_execution_engine(OptimizationLevel::None).unwrap();
+            let ee = state
+                .module
+                .create_jit_execution_engine(OptimizationLevel::None)
+                .unwrap();
             let test_fn = ee
                 .get_function::<unsafe extern "C" fn() -> f64>("anon")
                 .unwrap();
