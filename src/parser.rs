@@ -187,6 +187,7 @@ fn parse_definition(state: &mut State) -> AST {
     get_next_token(state); // eat def.
     let proto = parse_prototype(state);
     let body = parse_expression(state);
+    get_next_token(state); // eat 'def'.
 
     return AST::Function(FunctionAST::new(proto, body));
 }
@@ -202,7 +203,9 @@ fn parse_top_level_expr(state: &mut State) -> AST {
 // external ::= 'extern' prototype
 fn parse_extern(state: &mut State) -> AST {
     get_next_token(state);
-    return parse_prototype(state);
+    let proto = parse_prototype(state);
+    get_next_token(state); // eat ';'.
+    return proto;
 }
 
 fn handle_definition(state: &mut State) {
@@ -213,9 +216,7 @@ fn handle_definition(state: &mut State) {
         // Skip the token for error recovery
         get_next_token(state);
     } else {
-        println!("Parsed a function definition.");
-        let ir = codegen(state, &node);
-        println!("{}", ir.print_to_string().to_str().unwrap());
+        codegen(state, &node);
     }
 }
 
@@ -226,9 +227,7 @@ fn handle_extern(state: &mut State) {
         // Skip the token for error recovery
         get_next_token(state);
     } else {
-        println!("Parsed an extern.");
-        let ir = codegen(state, &node);
-        println!("{}", ir.print_to_string().to_str().unwrap());
+        codegen(state, &node);
 
         let proto = match node {
             AST::Prototype(val) => val,
@@ -250,9 +249,7 @@ fn handle_top_level_expression(state: &mut State) {
         // Skip the token for error recovery
         get_next_token(state);
     } else {
-        println!("Parsed a top-level expression.");
-        let ir = codegen(state, &node);
-        println!("{}", ir.print_to_string().to_str().unwrap());
+        codegen(state, &node);
         unsafe {
             let ee = state
                 .module
@@ -271,7 +268,7 @@ fn handle_top_level_expression(state: &mut State) {
 
 pub fn main_loop(state: &mut State) {
     loop {
-        println!("ready >");
+        println!("ready> ");
         match state.cur_tok {
             Token::TokEOF => break,
             Token::TokChar(';') => get_next_token(state),

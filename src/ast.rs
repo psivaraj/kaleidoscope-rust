@@ -163,7 +163,7 @@ impl PrototypeAST {
 
     pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> AnyValueEnum<'ctx> {
         let mut param_types = Vec::new();
-        for arg in &self.args {
+        for _ in &self.args {
             param_types.push(state.context.f64_type().into())
         }
 
