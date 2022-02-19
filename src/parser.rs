@@ -1,5 +1,5 @@
 use inkwell::values::AnyValue;
-
+use inkwell::OptimizationLevel;
 use crate::ast::{
     codegen, BinaryExprAST, CallExprAST, FunctionAST, NumberExprAST, PrototypeAST, Token,
     VariableExprAST, AST,
@@ -233,6 +233,7 @@ fn handle_extern(state: &mut State) {
 }
 
 fn handle_top_level_expression(state: &mut State) {
+    let temp_module = state.module.clone();//state.context.create_module("kaleidoscope");
     let node = parse_top_level_expr(state);
 
     if matches!(node, AST::Null) {
@@ -241,17 +242,18 @@ fn handle_top_level_expression(state: &mut State) {
     } else {
         println!("Parsed a top-level expression.");
         let ir = codegen(state, &node);
+        println!("{}", ir.print_to_string().to_str().unwrap());
         unsafe {
-            let test_fn = state
-                .execution_engine
+            let ee = state.module.create_jit_execution_engine(OptimizationLevel::None).unwrap();
+            let test_fn = ee
                 .get_function::<unsafe extern "C" fn() -> f64>("anon")
                 .unwrap();
             let return_value = test_fn.call();
             println!("{}", return_value);
         }
-        state.reinit();
         // TODO: Remove the anonymous expression.
     }
+    state.module = temp_module;
 }
 
 pub fn main_loop(state: &mut State) {
