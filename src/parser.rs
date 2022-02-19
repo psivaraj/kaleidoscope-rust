@@ -206,6 +206,7 @@ fn parse_extern(state: &mut State) -> AST {
 }
 
 fn handle_definition(state: &mut State) {
+    state.module = state.context.create_module("kaleidoscope");
     let node = parse_definition(state);
 
     if matches!(node, AST::Null) {
@@ -228,6 +229,16 @@ fn handle_extern(state: &mut State) {
         println!("Parsed an extern.");
         let ir = codegen(state, &node);
         println!("{}", ir.print_to_string().to_str().unwrap());
+
+        let proto = match node {
+            AST::Prototype(val) => val,
+            _ => panic!(
+                "FunctionAST code generation failure, expected a ProtoTypeAST for proto field."
+            ),
+        };
+        state
+            .function_protos
+            .insert(proto.get_name().to_string(), proto);
     }
 }
 
