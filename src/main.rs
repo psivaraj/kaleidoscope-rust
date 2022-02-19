@@ -23,7 +23,8 @@ pub struct State<'ctx> {
 }
 
 impl<'ctx> State<'ctx> {
-    pub fn new(context: &'ctx Context, module: Module<'ctx>, fpm: PassManager<FunctionValue<'ctx>>) -> State<'ctx> {
+    pub fn new(context: &'ctx Context, module: Module<'ctx>) -> State<'ctx> {
+        let fpm: PassManager<FunctionValue> = PassManager::create(&module);
         // Do simple "peephole" optimizations and bit-twiddling optzns.
         fpm.add_instruction_combining_pass();
         // Reassociate expressions.
@@ -49,8 +50,7 @@ fn main() {
     // Statements here are executed when the compiled binary is called
     let context = Context::create();
     let module = context.create_module("kaleidoscope");
-    let fpm: PassManager<FunctionValue> = PassManager::create(&module);
-    let mut state = State::new(&context, module, fpm);
+    let mut state = State::new(&context, module);
     println!("ready> ");
 
     // Prime the first token
