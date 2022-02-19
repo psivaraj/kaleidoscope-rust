@@ -1,5 +1,5 @@
 use crate::State;
-use inkwell::values::{BasicValue, AnyValueEnum, FunctionValue};
+use inkwell::values::{AnyValueEnum, BasicValue, FunctionValue};
 use inkwell::FloatPredicate::OLT;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -142,7 +142,8 @@ impl CallExprAST {
         call_site_val
             .try_as_basic_value()
             .unwrap_left()
-            .into_float_value().into()
+            .into_float_value()
+            .into()
     }
 }
 

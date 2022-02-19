@@ -7,9 +7,11 @@ use std::collections::HashMap;
 use ast::Token;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
+use inkwell::execution_engine::ExecutionEngine;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
 use inkwell::values::{FloatValue, FunctionValue};
+use inkwell::OptimizationLevel;
 use parser::main_loop;
 
 pub struct State<'ctx> {
@@ -18,6 +20,7 @@ pub struct State<'ctx> {
     pub context: &'ctx Context,
     pub builder: Builder<'ctx>,
     pub module: Module<'ctx>,
+    pub execution_engine: ExecutionEngine<'ctx>,
     pub fpm: PassManager<FunctionValue<'ctx>>,
     pub named_values: HashMap<String, FloatValue<'ctx>>,
 }
@@ -34,15 +37,29 @@ impl<'ctx> State<'ctx> {
         // Simplify the control flow graph (deleting unreachable blocks, etc).
         fpm.add_cfg_simplification_pass();
         fpm.initialize();
+
+        let execution_engine = module
+            .create_jit_execution_engine(OptimizationLevel::None)
+            .unwrap();
+
         State {
             cur_tok: Token::TokUndef,
             last_char: ' ',
             context,
             builder: context.create_builder(),
             module,
+            execution_engine,
             fpm,
             named_values: HashMap::new(),
         }
+    }
+    pub fn reinit(&mut self) {
+        // TODO: Should be able to use add/remove module here instead of re-generating the execution-engine
+        self.module = self.context.create_module("kaleidoscope");
+        self.execution_engine = self
+            .module
+            .create_jit_execution_engine(OptimizationLevel::None)
+            .unwrap();
     }
 }
 

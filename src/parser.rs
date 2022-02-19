@@ -193,7 +193,7 @@ fn parse_definition(state: &mut State) -> AST {
 
 // toplevelexpr ::= expression
 fn parse_top_level_expr(state: &mut State) -> AST {
-    let proto = AST::Prototype(PrototypeAST::new(String::from(""), vec![]));
+    let proto = AST::Prototype(PrototypeAST::new(String::from("anon"), vec![]));
     let body = parse_expression(state);
 
     return AST::Function(FunctionAST::new(proto, body));
@@ -215,7 +215,7 @@ fn handle_definition(state: &mut State) {
     } else {
         println!("Parsed a function definition.");
         let ir = codegen(state, &node);
-        print!("{}", ir.print_to_string().to_str().unwrap());
+        println!("{}", ir.print_to_string().to_str().unwrap());
     }
 }
 
@@ -228,7 +228,7 @@ fn handle_extern(state: &mut State) {
     } else {
         println!("Parsed an extern.");
         let ir = codegen(state, &node);
-        print!("{}", ir.print_to_string().to_str().unwrap());
+        println!("{}", ir.print_to_string().to_str().unwrap());
     }
 }
 
@@ -241,7 +241,15 @@ fn handle_top_level_expression(state: &mut State) {
     } else {
         println!("Parsed a top-level expression.");
         let ir = codegen(state, &node);
-        print!("{}", ir.print_to_string().to_str().unwrap());
+        unsafe {
+            let test_fn = state
+                .execution_engine
+                .get_function::<unsafe extern "C" fn() -> f64>("anon")
+                .unwrap();
+            let return_value = test_fn.call();
+            println!("{}", return_value);
+        }
+        state.reinit();
         // TODO: Remove the anonymous expression.
     }
 }
