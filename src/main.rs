@@ -65,4 +65,6 @@ fn main() {
     println!("{}", state.module.print_to_string());
 }
 
-// TODO: You are ready to start Chapter 4.
+// TODO: You are stuck at the fact that you can't seem
+// to define multiple functions since you create a
+// new module everytime in `handle_definition`.
