@@ -1,6 +1,6 @@
 use crate::State;
 use inkwell::values::{AnyValueEnum, BasicValue, FunctionValue};
-use inkwell::FloatPredicate::OLT;
+use inkwell::FloatPredicate::{OLT, ONE};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Token {
@@ -13,6 +13,11 @@ pub enum Token {
     // commands
     TokDef,
     TokExtern,
+
+    // control
+    TokIf,
+    TokThen,
+    TokElse,
 
     // primary
     TokIdentifier(String),
@@ -29,6 +34,7 @@ pub enum AST {
     Variable(VariableExprAST),
     Binary(BinaryExprAST),
     Call(CallExprAST),
+    If(IfExprAST),
     Prototype(PrototypeAST),
     Function(FunctionAST),
 }
@@ -143,6 +149,83 @@ impl CallExprAST {
     }
 }
 
+/// IfExprAST - Expression class for if/then/else.
+#[derive(Debug)]
+pub struct IfExprAST {
+    cond: Box<AST>,
+    then: Box<AST>,
+    els: Box<AST>,
+}
+
+impl IfExprAST {
+    pub fn new(cond: AST, then: AST, els: AST) -> Self {
+        return IfExprAST {
+            cond: Box::new(cond),
+            then: Box::new(then),
+            els: Box::new(els),
+        };
+    }
+
+    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> AnyValueEnum<'ctx> {
+        let condv = codegen(state, self.cond.as_ref());
+
+        let condv_out = state.builder.build_float_compare(
+            ONE,
+            condv.into_float_value(),
+            state.context.f64_type().const_float(0.0),
+            "ifcond",
+        );
+
+        // Needed because in the LLVM context, we are within a function, so let's grab that
+        // function object.
+        let orig_block = state.builder.get_insert_block().unwrap();
+        let func_value = orig_block.get_parent().unwrap();
+
+        // Create blocks for the then and else cases.  Insert the 'then' block at the
+        // end of the function.
+        let mut then_bb = state.context.append_basic_block(func_value, "then");
+        let mut else_bb = state.context.append_basic_block(func_value, "else");
+        let mut merge_bb = state.context.append_basic_block(func_value, "ifcont");
+
+        // TODO: Hoping `append_basic_block` does not affect where the builder is yet...
+        assert!(
+            matches!(state.builder.get_insert_block().unwrap(), orig_block),
+            "Insertion point not where we expected!"
+        );
+        state
+            .builder
+            .build_conditional_branch(condv_out, then_bb, else_bb);
+
+        // Emit then block
+        state.builder.position_at_end(then_bb);
+        let thenv = codegen(state, self.then.as_ref());
+        state.builder.build_unconditional_branch(merge_bb);
+        // codegen of 'Then' can change the current block, update ThenBB for the PHI.
+        then_bb = state.builder.get_insert_block().unwrap();
+
+        // Emit else block
+        else_bb.move_after(then_bb).unwrap();
+        state.builder.position_at_end(else_bb);
+        let elsev = codegen(state, self.els.as_ref());
+        state.builder.build_unconditional_branch(merge_bb);
+        // codegen of 'Else' can change the current block, update ElseBB for the PHI.
+        else_bb = state.builder.get_insert_block().unwrap();
+
+
+        // Emit merge block
+        merge_bb.move_after(else_bb).unwrap();
+        state.builder.position_at_end(merge_bb);
+        let phi_node = state.builder.build_phi(state.context.f64_type(), "iftmp");
+        phi_node.add_incoming(&[
+            (&thenv.into_float_value(), then_bb),
+            (&elsev.into_float_value(), else_bb)
+        ]);
+
+        return phi_node.into();
+    }
+
+}
+
 // PrototypeAST - This class represents the "prototype" for a function,
 // which captures its name, and its argument names (thus implicitly the number
 // of arguments the function takes).
@@ -250,6 +333,7 @@ impl FunctionAST {
 }
 
 // General code generation function
+// TODO: There's got to be a better way -- presumably with anonymous functions
 pub fn codegen<'ctx>(state: &mut State<'ctx>, node: &AST) -> AnyValueEnum<'ctx> {
     match node {
         AST::Number(inner_val) => inner_val.codegen(state),
@@ -258,6 +342,7 @@ pub fn codegen<'ctx>(state: &mut State<'ctx>, node: &AST) -> AnyValueEnum<'ctx> 
         AST::Call(inner_val) => inner_val.codegen(state),
         AST::Function(inner_val) => inner_val.codegen(state),
         AST::Prototype(inner_val) => inner_val.codegen(state),
+        AST::If(inner_val) => inner_val.codegen(state),
         _ => panic!(
             "General code generation failure. Could not find key `{:?}`",
             node

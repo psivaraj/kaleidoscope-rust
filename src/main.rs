@@ -61,6 +61,7 @@ fn main() {
     println!("\n{}", state.module.print_to_string().to_string());
 }
 
-// TODO: You are stuck at the fact that you can't seem
-// to define multiple functions since you create a
-// new module everytime in `handle_definition`.
+// TODO: You just added the `if/else` logic which takes you to the end of
+// this section: https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl05.html#code-generation-for-if-then-else
+// Now you need to test to see if it actually works. Lots of interesting stuff to debug with how you
+// insert and move around the basic blocks.

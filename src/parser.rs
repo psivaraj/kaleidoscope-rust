@@ -1,8 +1,8 @@
 use std::io::Write;
 
 use crate::ast::{
-    codegen, BinaryExprAST, CallExprAST, FunctionAST, NumberExprAST, PrototypeAST, Token,
-    VariableExprAST, AST,
+    codegen, BinaryExprAST, CallExprAST, FunctionAST, IfExprAST, NumberExprAST, PrototypeAST,
+    Token, VariableExprAST, AST,
 };
 use crate::lexer::get_next_token;
 use crate::State;
@@ -99,7 +99,11 @@ fn parse_primary(state: &mut State) -> AST {
         Token::TokChar('(') => return parse_paren_expr(state),
         Token::TokIdentifier(_) => return parse_identifier_expr(state),
         Token::TokNumber(_) => return parse_number_expr(state),
-        _ => panic!("Unknown token `{:?}` when expecting an expression.", state.cur_tok),
+        Token::TokIf => return parse_if_expr(state),
+        _ => panic!(
+            "Unknown token `{:?}` when expecting an expression.",
+            state.cur_tok
+        ),
     }
 }
 
@@ -205,6 +209,32 @@ fn parse_extern(state: &mut State) -> AST {
     get_next_token(state);
     let proto = parse_prototype(state);
     return proto;
+}
+
+// ifexpr ::= 'if' expression 'then' expression 'else' expression
+fn parse_if_expr(state: &mut State) -> AST {
+    get_next_token(state); // eat the `if`
+
+    // condition.
+    let cond = parse_expression(state);
+
+    if !matches!(state.cur_tok, Token::TokThen) {
+        panic!("Expected 'then' in if expression");
+    };
+
+    get_next_token(state); // eat the `then`
+
+    let then = parse_expression(state);
+
+    if !matches!(state.cur_tok, Token::TokElse) {
+        panic!("Expected 'else' in if expression");
+    };
+
+    get_next_token(state); // eat the `else`
+
+    let els = parse_expression(state);
+
+    return AST::If(IfExprAST::new(cond, then, els));
 }
 
 fn handle_definition(state: &mut State) {
