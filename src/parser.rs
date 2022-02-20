@@ -1,3 +1,5 @@
+use std::io::Write;
+
 use crate::ast::{
     codegen, BinaryExprAST, CallExprAST, FunctionAST, NumberExprAST, PrototypeAST, Token,
     VariableExprAST, AST,
@@ -98,7 +100,7 @@ fn parse_primary(state: &mut State) -> AST {
         Token::TokChar('(') => return parse_paren_expr(state),
         Token::TokIdentifier(_) => return parse_identifier_expr(state),
         Token::TokNumber(_) => return parse_number_expr(state),
-        _ => panic!("Unknown token when expecting an expression."),
+        _ => panic!("Unknown token `{:?}` when expecting an expression.", state.cur_tok),
     }
 }
 
@@ -187,7 +189,6 @@ fn parse_definition(state: &mut State) -> AST {
     get_next_token(state); // eat def.
     let proto = parse_prototype(state);
     let body = parse_expression(state);
-    get_next_token(state); // eat 'def'.
 
     return AST::Function(FunctionAST::new(proto, body));
 }
@@ -204,7 +205,6 @@ fn parse_top_level_expr(state: &mut State) -> AST {
 fn parse_extern(state: &mut State) -> AST {
     get_next_token(state);
     let proto = parse_prototype(state);
-    get_next_token(state); // eat ';'.
     return proto;
 }
 
@@ -259,16 +259,27 @@ fn handle_top_level_expression(state: &mut State) {
                 .get_function::<unsafe extern "C" fn() -> f64>("anon")
                 .unwrap();
             let return_value = test_fn.call();
-            println!("{}", return_value);
-        }
-        // TODO: Remove the anonymous expression.
+            println!("out> {return_value}");
+        };
     }
     state.module = temp_module;
 }
 
 pub fn main_loop(state: &mut State) {
+    print!("in > ");
+    std::io::stdout().flush().unwrap();
+    // Prime the first token
+    get_next_token(state);
+    match state.cur_tok {
+        Token::TokChar(';') => get_next_token(state),
+        Token::TokDef => handle_definition(state),
+        Token::TokExtern => handle_extern(state),
+        _ => handle_top_level_expression(state),
+    };
     loop {
-        println!("ready> ");
+        print!("in > ");
+        std::io::stdout().flush().unwrap();
+        get_next_token(state);
         match state.cur_tok {
             Token::TokEOF => break,
             Token::TokChar(';') => get_next_token(state),

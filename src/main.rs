@@ -54,10 +54,6 @@ fn main() {
     // Statements here are executed when the compiled binary is called
     let context = Context::create();
     let mut state = State::new(&context);
-    println!("ready> ");
-
-    // Prime the first token
-    lexer::get_next_token(&mut state);
 
     // Run the main "interpreter loop" now.
     main_loop(&mut state);

@@ -9,7 +9,7 @@ fn getchar() -> char {
 // Grab the next token from the stream
 fn get_token(state: &mut State) -> Token {
     // Skip any whitespace.
-    while state.last_char.is_whitespace() {
+    while state.last_char.is_whitespace() || state.last_char == '\n' {
         state.last_char = getchar();
     }
 
