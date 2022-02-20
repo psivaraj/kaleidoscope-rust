@@ -26,6 +26,8 @@ fn get_token(state: &mut State) -> Token {
             return Token::TokDef;
         } else if identifier_str == "extern" {
             return Token::TokExtern;
+        } else if identifier_str == "exit" {
+            return Token::TokEOF;
         } else {
             return Token::TokIdentifier(identifier_str);
         }

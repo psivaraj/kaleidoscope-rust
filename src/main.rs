@@ -58,7 +58,7 @@ fn main() {
     // Run the main "interpreter loop" now.
     main_loop(&mut state);
 
-    println!("{}", state.module.print_to_string());
+    println!("\n{}", state.module.print_to_string().to_string());
 }
 
 // TODO: You are stuck at the fact that you can't seem

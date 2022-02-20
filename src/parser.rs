@@ -6,7 +6,6 @@ use crate::ast::{
 };
 use crate::lexer::get_next_token;
 use crate::State;
-use inkwell::values::AnyValue;
 use inkwell::OptimizationLevel;
 
 pub fn get_tok_precedence(token: &Token) -> i32 {
@@ -259,14 +258,14 @@ fn handle_top_level_expression(state: &mut State) {
                 .get_function::<unsafe extern "C" fn() -> f64>("anon")
                 .unwrap();
             let return_value = test_fn.call();
-            println!("out> {return_value}");
+            println!("Out[#]: {return_value}\n");
         };
     }
     state.module = temp_module;
 }
 
 pub fn main_loop(state: &mut State) {
-    print!("in > ");
+    print!("In [#]: ");
     std::io::stdout().flush().unwrap();
     // Prime the first token
     get_next_token(state);
@@ -277,7 +276,7 @@ pub fn main_loop(state: &mut State) {
         _ => handle_top_level_expression(state),
     };
     loop {
-        print!("in > ");
+        print!("In [#]: ");
         std::io::stdout().flush().unwrap();
         get_next_token(state);
         match state.cur_tok {
