@@ -209,7 +209,7 @@ fn parse_extern(state: &mut State) -> AST {
 }
 
 fn handle_definition(state: &mut State) {
-    state.module = state.context.create_module("kaleidoscope");
+    // TODO: Can't redefine files yet.
     let node = parse_definition(state);
 
     if matches!(node, AST::Null) {
