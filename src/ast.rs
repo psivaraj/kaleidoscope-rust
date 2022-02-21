@@ -185,13 +185,8 @@ impl IfExprAST {
         // end of the function.
         let mut then_bb = state.context.append_basic_block(func_value, "then");
         let mut else_bb = state.context.append_basic_block(func_value, "else");
-        let mut merge_bb = state.context.append_basic_block(func_value, "ifcont");
+        let merge_bb = state.context.append_basic_block(func_value, "ifcont");
 
-        // TODO: Hoping `append_basic_block` does not affect where the builder is yet...
-        assert!(
-            matches!(state.builder.get_insert_block().unwrap(), orig_block),
-            "Insertion point not where we expected!"
-        );
         state
             .builder
             .build_conditional_branch(condv_out, then_bb, else_bb);
@@ -221,7 +216,7 @@ impl IfExprAST {
             (&elsev.into_float_value(), else_bb)
         ]);
 
-        return phi_node.into();
+        return phi_node.as_basic_value().into();
     }
 
 }
@@ -279,9 +274,10 @@ pub struct FunctionAST {
 impl FunctionAST {
     pub fn new(proto: AST, body: AST) -> Self {
         assert!(matches!(proto, AST::Prototype(_)));
+        // body must be an ExprAST type
         assert!(matches!(
             body,
-            AST::Number(_) | AST::Variable(_) | AST::Binary(_) | AST::Call(_)
+            AST::Number(_) | AST::Variable(_) | AST::Binary(_) | AST::Call(_) | AST::If(_)
         ));
         FunctionAST {
             proto: Box::new(proto),
