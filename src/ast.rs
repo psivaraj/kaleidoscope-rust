@@ -2,31 +2,6 @@ use crate::State;
 use inkwell::values::{AnyValueEnum, BasicValue, FunctionValue};
 use inkwell::FloatPredicate::{OLT, ONE};
 
-#[derive(Clone, Debug, PartialEq)]
-pub enum Token {
-    // default null
-    TokUndef,
-
-    // end of file
-    TokEOF,
-
-    // commands
-    TokDef,
-    TokExtern,
-
-    // control
-    TokIf,
-    TokThen,
-    TokElse,
-
-    // primary
-    TokIdentifier(String),
-    TokNumber(f64),
-
-    // catch-all
-    TokChar(char),
-}
-
 #[derive(Debug)]
 pub enum AST {
     Null,

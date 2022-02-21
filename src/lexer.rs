@@ -1,6 +1,33 @@
-use crate::ast::Token;
 use crate::State;
 use libc;
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Token {
+    // default null
+    TokUndef,
+
+    // end of file
+    TokEOF,
+
+    // commands
+    TokDef,
+    TokExtern,
+
+    // control
+    TokIf,
+    TokThen,
+    TokElse,
+    TokFor,
+    TokIn,
+
+    // primary
+    TokIdentifier(String),
+    TokNumber(f64),
+
+    // catch-all
+    TokChar(char),
+}
+
 
 fn getchar() -> char {
     char::from_u32(unsafe { libc::getchar() } as u32).unwrap()
@@ -32,6 +59,10 @@ fn get_token(state: &mut State) -> Token {
             return Token::TokThen;
         } else if identifier_str == "else" {
             return Token::TokElse;
+        } else if identifier_str == "for" {
+            return Token::TokFor;
+        } else if identifier_str == "in" {
+            return Token::TokIn;
         } else if identifier_str == "exit" {
             return Token::TokEOF;
         } else {

@@ -1,10 +1,9 @@
 use std::io::Write;
 
 use crate::ast::{
-    codegen, BinaryExprAST, CallExprAST, FunctionAST, IfExprAST, NumberExprAST, PrototypeAST,
-    Token, VariableExprAST, AST,
+    codegen, BinaryExprAST, CallExprAST, FunctionAST, IfExprAST, NumberExprAST, PrototypeAST, VariableExprAST, AST,
 };
-use crate::lexer::get_next_token;
+use crate::lexer::{Token, get_next_token};
 use crate::State;
 use inkwell::OptimizationLevel;
 

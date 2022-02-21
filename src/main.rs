@@ -4,7 +4,8 @@ mod parser;
 
 use std::collections::HashMap;
 
-use ast::{PrototypeAST, Token};
+use ast::PrototypeAST;
+use lexer::Token;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
