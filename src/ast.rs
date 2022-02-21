@@ -10,6 +10,7 @@ pub enum AST {
     Binary(BinaryExprAST),
     Call(CallExprAST),
     If(IfExprAST),
+    For(ForExprAST),
     Prototype(PrototypeAST),
     Function(FunctionAST),
 }
@@ -124,7 +125,7 @@ impl CallExprAST {
     }
 }
 
-/// IfExprAST - Expression class for if/then/else.
+// IfExprAST - Expression class for if/then/else.
 #[derive(Debug)]
 pub struct IfExprAST {
     cond: Box<AST>,
@@ -181,19 +182,126 @@ impl IfExprAST {
         // codegen of 'Else' can change the current block, update ElseBB for the PHI.
         else_bb = state.builder.get_insert_block().unwrap();
 
-
         // Emit merge block
         merge_bb.move_after(else_bb).unwrap();
         state.builder.position_at_end(merge_bb);
         let phi_node = state.builder.build_phi(state.context.f64_type(), "iftmp");
         phi_node.add_incoming(&[
             (&thenv.into_float_value(), then_bb),
-            (&elsev.into_float_value(), else_bb)
+            (&elsev.into_float_value(), else_bb),
         ]);
 
         return phi_node.as_basic_value().into();
     }
+}
 
+// ForExprAST - Expression class for for/in.
+#[derive(Debug)]
+pub struct ForExprAST {
+    name: String,
+    start: Box<AST>,
+    end: Box<AST>,
+    step: Box<AST>,
+    body: Box<AST>,
+}
+
+impl ForExprAST {
+    pub fn new(name: String, start: AST, end: AST, step: AST, body: AST) -> Self {
+        return ForExprAST {
+            name,
+            start: Box::new(start),
+            end: Box::new(end),
+            step: Box::new(step),
+            body: Box::new(body),
+        };
+    }
+
+    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> AnyValueEnum<'ctx> {
+        // Emit the start code first, without 'variable' in scope.
+        let start_val = codegen(state, self.start.as_ref());
+
+        // Make the new basic block for the loop header, inserting after current
+        let preheader_bb = state.builder.get_insert_block().unwrap();
+        let func_value = preheader_bb.get_parent().unwrap();
+        let loop_bb = state.context.append_basic_block(func_value, "loop");
+
+        // Insert an explicit fall through from the current block to the loop_bb.
+        state.builder.build_unconditional_branch(loop_bb);
+
+        // start insertion in loop_bb
+        state.builder.position_at_end(loop_bb);
+
+        // Start the PHI node
+        let phi_node = state
+            .builder
+            .build_phi(state.context.f64_type(), self.name.as_str());
+        // TODO: Unclear if `add_incoming` will append
+        phi_node.add_incoming(&[(&start_val.into_float_value(), preheader_bb)]);
+
+        // Within the loop, the variable is defined equal to the PHI node.  If it
+        // shadows an existing variable, we have to restore it, so save it now.
+        let old_val = state.named_values.insert(
+            self.name.clone(),
+            phi_node.as_basic_value().into_float_value(),
+        );
+
+        // Emit the body of the loop.  This, like any other expr, can change the
+        // current BB.  Note that we ignore the value computed by the body.
+        codegen(state, self.body.as_ref());
+
+        // Emit the step value
+        let mut step_val: AnyValueEnum;
+        if !matches!(self.step.as_ref(), AST::Null) {
+            step_val = codegen(state, self.step.as_ref());
+        } else {
+            step_val = state.context.f64_type().const_float(0.0).into();
+        };
+
+        let next_var = state.builder.build_float_add(
+            phi_node.as_basic_value().into_float_value(),
+            step_val.into_float_value(),
+            "nextvar",
+        );
+
+        // Compute the end condition.
+        let end_cond = codegen(state, self.end.as_ref());
+
+        // Convert condition to a bool by comparing non-equal to 0.0.
+        let end_cond_val = state.builder.build_float_compare(
+            ONE,
+            end_cond.into_float_value(),
+            state.context.f64_type().const_float(0.0).into(),
+            "loopcond",
+        );
+
+        // grab the current loop end
+        let loop_end_bb = state.builder.get_insert_block().unwrap();
+
+        // Create the "after loop" block and insert it.
+        let after_bb = state.context.append_basic_block(func_value, "afterloop");
+        state.builder.position_at_end(after_bb);
+
+        // Insert the conditional branch into the end of LoopEndBB.
+        state
+            .builder
+            .build_conditional_branch(end_cond_val, loop_bb, after_bb);
+
+        // Any new code will be inserted in AfterBB.
+        state.builder.position_at_end(after_bb);
+
+        // Add a new entry to the PHI node for the backedge.
+        phi_node.add_incoming(&[(&next_var, loop_end_bb)]);
+
+        // Restore the unshadowed variable
+        if let Some(val) = old_val {
+            state.named_values.insert(self.name.clone(), val);
+        } else {
+            state.named_values.remove(&self.name);
+        };
+
+        // for expr always returns 0.0.
+        return state.context.f64_type().const_float(0.0).into();
+    }
 }
 
 // PrototypeAST - This class represents the "prototype" for a function,
@@ -314,6 +422,7 @@ pub fn codegen<'ctx>(state: &mut State<'ctx>, node: &AST) -> AnyValueEnum<'ctx> 
         AST::Function(inner_val) => inner_val.codegen(state),
         AST::Prototype(inner_val) => inner_val.codegen(state),
         AST::If(inner_val) => inner_val.codegen(state),
+        AST::For(inner_val) => inner_val.codegen(state),
         _ => panic!(
             "General code generation failure. Could not find key `{:?}`",
             node

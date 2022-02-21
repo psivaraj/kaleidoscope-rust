@@ -5,12 +5,12 @@ mod parser;
 use std::collections::HashMap;
 
 use ast::PrototypeAST;
-use lexer::Token;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
 use inkwell::values::{FloatValue, FunctionValue};
+use lexer::Token;
 use parser::main_loop;
 
 pub struct State<'ctx> {
@@ -61,8 +61,3 @@ fn main() {
 
     println!("\n{}", state.module.print_to_string().to_string());
 }
-
-// TODO: You just added the `if/else` logic which takes you to the end of
-// this section: https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl05.html#code-generation-for-if-then-else
-// Now you need to test to see if it actually works. Lots of interesting stuff to debug with how you
-// insert and move around the basic blocks.

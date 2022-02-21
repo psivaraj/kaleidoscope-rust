@@ -28,7 +28,6 @@ pub enum Token {
     TokChar(char),
 }
 
-
 fn getchar() -> char {
     char::from_u32(unsafe { libc::getchar() } as u32).unwrap()
 }

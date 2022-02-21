@@ -1,9 +1,10 @@
 use std::io::Write;
 
 use crate::ast::{
-    codegen, BinaryExprAST, CallExprAST, FunctionAST, IfExprAST, NumberExprAST, PrototypeAST, VariableExprAST, AST,
+    codegen, BinaryExprAST, CallExprAST, ForExprAST, FunctionAST, IfExprAST, NumberExprAST,
+    PrototypeAST, VariableExprAST, AST,
 };
-use crate::lexer::{Token, get_next_token};
+use crate::lexer::{get_next_token, Token};
 use crate::State;
 use inkwell::OptimizationLevel;
 
@@ -99,6 +100,7 @@ fn parse_primary(state: &mut State) -> AST {
         Token::TokIdentifier(_) => return parse_identifier_expr(state),
         Token::TokNumber(_) => return parse_number_expr(state),
         Token::TokIf => return parse_if_expr(state),
+        Token::TokFor => return parse_for_expr(state),
         _ => panic!(
             "Unknown token `{:?}` when expecting an expression.",
             state.cur_tok
@@ -234,6 +236,44 @@ fn parse_if_expr(state: &mut State) -> AST {
     let els = parse_expression(state);
 
     return AST::If(IfExprAST::new(cond, then, els));
+}
+
+// forexpr ::= 'for' identifier '=' expr ',' expr (',' expr)? 'in' expression
+fn parse_for_expr(state: &mut State) -> AST {
+    get_next_token(state); // eat the `for`
+
+    let id_name = match state.cur_tok.clone() {
+        Token::TokIdentifier(a) => a,
+        _ => return AST::Null,
+    };
+    get_next_token(state); // eat the identifier
+
+    if !matches!(state.cur_tok, Token::TokChar('=')) {
+        panic!("Expected '=' after for");
+    };
+
+    let start = parse_expression(state);
+    if !matches!(state.cur_tok, Token::TokChar(',')) {
+        panic!("Expected ',' after for start value");
+    };
+    get_next_token(state); // eat the ','
+
+    let end = parse_expression(state);
+
+    // Step value is optional
+    let mut step = AST::Null;
+    if matches!(state.cur_tok, Token::TokChar(',')) {
+        get_next_token(state); // eat the ','
+        step = parse_expression(state);
+    };
+
+    if !matches!(state.cur_tok, Token::TokIn) {
+        panic!("Expected 'in' after for");
+    };
+
+    let body = parse_expression(state);
+
+    return AST::For(ForExprAST::new(id_name, start, end, step, body));
 }
 
 fn handle_definition(state: &mut State) {
