@@ -251,6 +251,7 @@ fn parse_for_expr(state: &mut State) -> AST {
     if !matches!(state.cur_tok, Token::TokChar('=')) {
         panic!("Expected '=' after for");
     };
+    get_next_token(state);  // eat '='.
 
     let start = parse_expression(state);
     if !matches!(state.cur_tok, Token::TokChar(',')) {
@@ -270,6 +271,7 @@ fn parse_for_expr(state: &mut State) -> AST {
     if !matches!(state.cur_tok, Token::TokIn) {
         panic!("Expected 'in' after for");
     };
+    get_next_token(state); // eat the `in`
 
     let body = parse_expression(state);
 

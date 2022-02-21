@@ -360,7 +360,7 @@ impl FunctionAST {
         // body must be an ExprAST type
         assert!(matches!(
             body,
-            AST::Number(_) | AST::Variable(_) | AST::Binary(_) | AST::Call(_) | AST::If(_)
+            AST::Number(_) | AST::Variable(_) | AST::Binary(_) | AST::Call(_) | AST::If(_) | AST::For(_)
         ));
         FunctionAST {
             proto: Box::new(proto),

@@ -61,3 +61,7 @@ fn main() {
 
     println!("\n{}", state.module.print_to_string().to_string());
 }
+
+
+// TODO: You are just at the stage of debugging a for loop, you're getting
+// errors during parsing.
