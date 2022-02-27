@@ -1,6 +1,6 @@
 use crate::State;
-use inkwell::values::{AnyValueEnum, BasicValue, FunctionValue};
-use inkwell::FloatPredicate::{OLT, ONE};
+use inkwell::values::{AnyValueEnum, BasicValue, FunctionValue, AnyValue};
+use inkwell::FloatPredicate::{ULT, ONE};
 
 #[derive(Debug)]
 pub enum AST {
@@ -77,12 +77,12 @@ impl BinaryExprAST {
             '-' => state.builder.build_float_sub(lhs, rhs, "subtmp").into(),
             '*' => state.builder.build_float_mul(lhs, rhs, "multmp").into(),
             '<' => {
-                let l = state.builder.build_float_compare(OLT, lhs, rhs, "cmptmp");
+                let l = state.builder.build_float_compare(ULT, lhs, rhs, "cmptmp");
                 state
                     .builder
                     .build_unsigned_int_to_float(l, state.context.f64_type(), "booltmp")
                     .into()
-            }
+            },
             _ => panic!(
                 "BinaryExprAST code generation failure. The operation {} is not supported",
                 self.op
@@ -250,7 +250,7 @@ impl ForExprAST {
         codegen(state, self.body.as_ref());
 
         // Emit the step value
-        let mut step_val: AnyValueEnum;
+        let step_val: AnyValueEnum;
         if !matches!(self.step.as_ref(), AST::Null) {
             step_val = codegen(state, self.step.as_ref());
         } else {
@@ -279,7 +279,6 @@ impl ForExprAST {
 
         // Create the "after loop" block and insert it.
         let after_bb = state.context.append_basic_block(func_value, "afterloop");
-        state.builder.position_at_end(after_bb);
 
         // Insert the conditional branch into the end of LoopEndBB.
         state
