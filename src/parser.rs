@@ -10,6 +10,7 @@ use inkwell::OptimizationLevel;
 
 pub fn get_tok_precedence(token: &Token) -> i32 {
     match token {
+        Token::TokChar('=') => return 2,
         Token::TokChar('<') => return 10,
         Token::TokChar('+') => return 20,
         Token::TokChar('-') => return 20,
@@ -251,7 +252,7 @@ fn parse_for_expr(state: &mut State) -> AST {
     if !matches!(state.cur_tok, Token::TokChar('=')) {
         panic!("Expected '=' after for");
     };
-    get_next_token(state);  // eat '='.
+    get_next_token(state); // eat '='.
 
     let start = parse_expression(state);
     if !matches!(state.cur_tok, Token::TokChar(',')) {

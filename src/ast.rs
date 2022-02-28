@@ -1,6 +1,6 @@
 use crate::State;
-use inkwell::values::{AnyValueEnum, BasicValue, FunctionValue, AnyValue};
-use inkwell::FloatPredicate::{ULT, ONE};
+use inkwell::values::{AnyValueEnum, BasicValue, FunctionValue, PointerValue};
+use inkwell::FloatPredicate::{ONE, ULT};
 
 #[derive(Debug)]
 pub enum AST {
@@ -43,7 +43,7 @@ impl VariableExprAST {
     pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> AnyValueEnum<'ctx> {
         let val = state.named_values.get(&self.name);
         match val {
-            Some(float_val) => (*float_val).into(),
+            Some(ptr_val) => state.builder.build_load(*ptr_val, &self.name).into(),
             None => panic!(
                 "VariableExprAST code generation failure. Could not find key `{}`",
                 self.name
@@ -70,8 +70,26 @@ impl BinaryExprAST {
         };
     }
     pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> AnyValueEnum<'ctx> {
+        // Special case '=' because we don't want to emit the LHS as an expression.
+        if let '=' = self.op {
+            // Assignment requires the LHS to be an identifier.
+            let lhse = match self.lhs.as_ref() {
+                AST::Variable(val) => val,
+                _ => panic!("destination of '=' must be a variable"),
+            };
+
+            // Codegen the RHS.
+            let val = codegen(state, self.rhs.as_ref()).into_float_value();
+
+            let var = state.named_values.get(&(lhse.name)).unwrap();
+
+            state.builder.build_store(*var, val);
+            return val.into();
+        }
+
         let lhs = codegen(state, self.lhs.as_ref()).into_float_value();
         let rhs = codegen(state, self.rhs.as_ref()).into_float_value();
+
         match self.op {
             '+' => state.builder.build_float_add(lhs, rhs, "addtmp").into(),
             '-' => state.builder.build_float_sub(lhs, rhs, "subtmp").into(),
@@ -82,7 +100,7 @@ impl BinaryExprAST {
                     .builder
                     .build_unsigned_int_to_float(l, state.context.f64_type(), "booltmp")
                     .into()
-            },
+            }
             _ => panic!(
                 "BinaryExprAST code generation failure. The operation {} is not supported",
                 self.op
@@ -217,12 +235,20 @@ impl ForExprAST {
     }
 
     pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> AnyValueEnum<'ctx> {
+        let preheader_bb = state.builder.get_insert_block().unwrap();
+        let func_value = preheader_bb.get_parent().unwrap();
+
+        let alloca = create_entry_block_alloca(state, func_value, &self.name);
+
         // Emit the start code first, without 'variable' in scope.
         let start_val = codegen(state, self.start.as_ref());
 
+        // Store the value into alloca
+        state
+            .builder
+            .build_store(alloca, start_val.into_float_value());
+
         // Make the new basic block for the loop header, inserting after current
-        let preheader_bb = state.builder.get_insert_block().unwrap();
-        let func_value = preheader_bb.get_parent().unwrap();
         let loop_bb = state.context.append_basic_block(func_value, "loop");
 
         // Insert an explicit fall through from the current block to the loop_bb.
@@ -231,19 +257,9 @@ impl ForExprAST {
         // start insertion in loop_bb
         state.builder.position_at_end(loop_bb);
 
-        // Start the PHI node
-        let phi_node = state
-            .builder
-            .build_phi(state.context.f64_type(), self.name.as_str());
-        // TODO: Unclear if `add_incoming` will append
-        phi_node.add_incoming(&[(&start_val.into_float_value(), preheader_bb)]);
-
         // Within the loop, the variable is defined equal to the PHI node.  If it
         // shadows an existing variable, we have to restore it, so save it now.
-        let old_val = state.named_values.insert(
-            self.name.clone(),
-            phi_node.as_basic_value().into_float_value(),
-        );
+        let old_val = state.named_values.insert(self.name.clone(), alloca);
 
         // Emit the body of the loop.  This, like any other expr, can change the
         // current BB.  Note that we ignore the value computed by the body.
@@ -254,17 +270,22 @@ impl ForExprAST {
         if !matches!(self.step.as_ref(), AST::Null) {
             step_val = codegen(state, self.step.as_ref());
         } else {
+            // If not specified, use 1.0.
             step_val = state.context.f64_type().const_float(0.0).into();
         };
 
+        // Compute the end condition.
+        let end_cond = codegen(state, self.end.as_ref());
+
+        // Reload, increment, and restore the alloca.  This handles the case where
+        // the body of the loop mutates the variable.
+        let cur_var = state.builder.build_load(alloca, &self.name);
         let next_var = state.builder.build_float_add(
-            phi_node.as_basic_value().into_float_value(),
+            cur_var.into_float_value(),
             step_val.into_float_value(),
             "nextvar",
         );
-
-        // Compute the end condition.
-        let end_cond = codegen(state, self.end.as_ref());
+        state.builder.build_store(alloca, next_var);
 
         // Convert condition to a bool by comparing non-equal to 0.0.
         let end_cond_val = state.builder.build_float_compare(
@@ -273,9 +294,6 @@ impl ForExprAST {
             state.context.f64_type().const_float(0.0).into(),
             "loopcond",
         );
-
-        // grab the current loop end
-        let loop_end_bb = state.builder.get_insert_block().unwrap();
 
         // Create the "after loop" block and insert it.
         let after_bb = state.context.append_basic_block(func_value, "afterloop");
@@ -287,9 +305,6 @@ impl ForExprAST {
 
         // Any new code will be inserted in AfterBB.
         state.builder.position_at_end(after_bb);
-
-        // Add a new entry to the PHI node for the backedge.
-        phi_node.add_incoming(&[(&next_var, loop_end_bb)]);
 
         // Restore the unshadowed variable
         if let Some(val) = old_val {
@@ -359,7 +374,12 @@ impl FunctionAST {
         // body must be an ExprAST type
         assert!(matches!(
             body,
-            AST::Number(_) | AST::Variable(_) | AST::Binary(_) | AST::Call(_) | AST::If(_) | AST::For(_)
+            AST::Number(_)
+                | AST::Variable(_)
+                | AST::Binary(_)
+                | AST::Call(_)
+                | AST::If(_)
+                | AST::For(_)
         ));
         FunctionAST {
             proto: Box::new(proto),
@@ -387,13 +407,19 @@ impl FunctionAST {
         let basic_block = state.context.append_basic_block(func_value, "entry");
         state.builder.position_at_end(basic_block);
 
+        // Record the function arguments in the NamedValues map.
         state.named_values.clear();
         for arg in func_value.get_param_iter() {
+            // Create an alloca for this variable.
             let arg_float_val = arg.into_float_value();
             let arg_name = arg_float_val.get_name().to_str().unwrap();
-            state
-                .named_values
-                .insert(arg_name.to_string(), arg_float_val);
+            let alloca = create_entry_block_alloca(state, func_value, arg_name);
+
+            // Store the initial value into the alloca.
+            state.builder.build_store(alloca, arg);
+
+            // Add arguments to variable symbol table.
+            state.named_values.insert(arg_name.to_string(), alloca);
         }
 
         let retval = codegen(state, &*self.body).into_float_value();
@@ -441,4 +467,19 @@ pub fn get_function<'ctx>(state: &mut State<'ctx>, name: &str) -> FunctionValue<
         Some(proto) => return proto.codegen(state).into_function_value(),
         None => panic!("get_function failure. Could not find key `{name}`",),
     }
+}
+
+// func_value.get_first_basic_block();
+// create a builder and position at basic block
+// use the builder to generate an alloca
+// state.builder.build_alloca(state.context.f64_type(), name);
+pub fn create_entry_block_alloca<'ctx>(
+    state: &mut State<'ctx>,
+    func_value: FunctionValue<'ctx>,
+    name: &str,
+) -> PointerValue<'ctx> {
+    let entry_bb = func_value.get_first_basic_block().unwrap();
+    let builder = state.context.create_builder();
+    builder.position_at_end(entry_bb);
+    builder.build_alloca(state.context.f64_type(), name)
 }

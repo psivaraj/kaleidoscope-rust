@@ -9,7 +9,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::passes::PassManager;
-use inkwell::values::{FloatValue, FunctionValue};
+use inkwell::values::{FunctionValue, PointerValue};
 use lexer::Token;
 use parser::main_loop;
 
@@ -20,7 +20,7 @@ pub struct State<'ctx> {
     pub builder: Builder<'ctx>,
     pub module: Module<'ctx>,
     pub fpm: PassManager<FunctionValue<'ctx>>,
-    pub named_values: HashMap<String, FloatValue<'ctx>>,
+    pub named_values: HashMap<String, PointerValue<'ctx>>,
     pub function_protos: HashMap<String, PrototypeAST>,
 }
 
@@ -28,6 +28,8 @@ impl<'ctx> State<'ctx> {
     pub fn new(context: &'ctx Context) -> State<'ctx> {
         let module = context.create_module("kaleidoscope");
         let fpm: PassManager<FunctionValue> = PassManager::create(&module);
+        // Promote allocas to registers.
+        fpm.add_promote_memory_to_register_pass();
         // Do simple "peephole" optimizations and bit-twiddling optzns.
         fpm.add_instruction_combining_pass();
         // Reassociate expressions.
@@ -62,6 +64,5 @@ fn main() {
     println!("\n{}", state.module.print_to_string().to_string());
 }
 
-
-// TODO: You are just at the stage of debugging a for loop, you're getting
-// errors during parsing.
+// TODO: You are just about to start adding user defined local variables
+// https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl07.html#user-defined-local-variables
