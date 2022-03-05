@@ -22,6 +22,7 @@ pub struct State<'ctx> {
     pub fpm: PassManager<FunctionValue<'ctx>>,
     pub named_values: HashMap<String, PointerValue<'ctx>>,
     pub function_protos: HashMap<String, PrototypeAST>,
+    pub bin_op_precedence: HashMap<String, i32>,
 }
 
 impl<'ctx> State<'ctx> {
@@ -40,6 +41,14 @@ impl<'ctx> State<'ctx> {
         fpm.add_cfg_simplification_pass();
         fpm.initialize();
 
+        // Populate the token precedence
+        let mut bin_op_precedence = HashMap::new();
+        bin_op_precedence.insert(String::from("="), 2);
+        bin_op_precedence.insert(String::from("<"), 10);
+        bin_op_precedence.insert(String::from("+"), 20);
+        bin_op_precedence.insert(String::from("-"), 20);
+        bin_op_precedence.insert(String::from("*"), 40);
+
         State {
             cur_tok: Token::TokUndef,
             last_char: ' ',
@@ -49,6 +58,7 @@ impl<'ctx> State<'ctx> {
             fpm,
             named_values: HashMap::new(),
             function_protos: HashMap::new(),
+            bin_op_precedence,
         }
     }
 }

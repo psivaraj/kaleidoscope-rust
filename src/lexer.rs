@@ -21,6 +21,10 @@ pub enum Token {
     TokIn,
     TokVar,
 
+    // operators
+    TokBinary,
+    TokUnary,
+
     // primary
     TokIdentifier(String),
     TokNumber(f64),
@@ -65,6 +69,10 @@ fn get_token(state: &mut State) -> Token {
             return Token::TokIn;
         } else if identifier_str == "var" {
             return Token::TokVar;
+        } else if identifier_str == "binary" {
+            return Token::TokBinary;
+        } else if identifier_str == "unary" {
+            return Token::TokUnary;
         } else if identifier_str == "exit" {
             return Token::TokEOF;
         } else {

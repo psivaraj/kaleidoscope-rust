@@ -94,21 +94,38 @@ impl BinaryExprAST {
         let rhs = codegen(state, self.rhs.as_ref()).into_float_value();
 
         match self.op {
-            '+' => state.builder.build_float_add(lhs, rhs, "addtmp").into(),
-            '-' => state.builder.build_float_sub(lhs, rhs, "subtmp").into(),
-            '*' => state.builder.build_float_mul(lhs, rhs, "multmp").into(),
+            '+' => return state.builder.build_float_add(lhs, rhs, "addtmp").into(),
+            '-' => return state.builder.build_float_sub(lhs, rhs, "subtmp").into(),
+            '*' => return state.builder.build_float_mul(lhs, rhs, "multmp").into(),
             '<' => {
                 let l = state.builder.build_float_compare(ULT, lhs, rhs, "cmptmp");
-                state
+                return state
                     .builder
                     .build_unsigned_int_to_float(l, state.context.f64_type(), "booltmp")
-                    .into()
+                    .into();
             }
-            _ => panic!(
-                "BinaryExprAST code generation failure. The operation {} is not supported",
-                self.op
-            ),
-        }
+            _ => (),
+        };
+
+        // If it wasn't a builtin binary operator, it must be a user defined one. Emit
+        // a call to it.
+        let mut func_name = String::from("binary");
+        func_name.push_str(&self.op.to_string());
+        let func_val = get_function(state, &func_name);
+
+        let mut args_v = Vec::new();
+        args_v.push(lhs.into());
+        args_v.push(rhs.into());
+
+        let call_site_val = state
+            .builder
+            .build_call(func_val, args_v.as_slice(), "binop");
+
+        call_site_val
+            .try_as_basic_value()
+            .unwrap_left()
+            .into_float_value()
+            .into()
     }
 }
 
@@ -386,6 +403,8 @@ impl VarExprAST {
 pub struct PrototypeAST {
     name: String,
     args: Vec<String>,
+    is_operator: bool,
+    precedence: i32,
 }
 
 impl PrototypeAST {
@@ -393,8 +412,13 @@ impl PrototypeAST {
         &self.name
     }
 
-    pub fn new(name: String, args: Vec<String>) -> Self {
-        PrototypeAST { name, args }
+    pub fn new(name: String, args: Vec<String>, is_operator: bool, precedence: i32) -> Self {
+        PrototypeAST {
+            name,
+            args,
+            is_operator,
+            precedence,
+        }
     }
 
     pub fn codegen<'ctx>(&self, state: &State<'ctx>) -> AnyValueEnum<'ctx> {
@@ -417,6 +441,23 @@ impl PrototypeAST {
         }
 
         return func.into();
+    }
+
+    pub fn is_unary_op(&self) -> bool {
+        self.is_operator && self.args.len() == 1
+    }
+
+    pub fn is_binary_op(&self) -> bool {
+        self.is_operator && self.args.len() == 2
+    }
+
+    pub fn get_operator_name(&self) -> &str {
+        assert!(self.is_unary_op() || self.is_binary_op());
+        &self.name[&self.name.len()-1..]
+    }
+
+    pub fn get_binary_precedence(&self) -> i32 {
+        self.precedence
     }
 }
 
@@ -464,6 +505,11 @@ impl FunctionAST {
             .insert(proto.get_name().to_string(), proto.clone());
 
         let func_value = get_function(state, proto.get_name());
+
+        // If this is an operator, install it.
+        if proto.is_binary_op() {
+            state.bin_op_precedence.insert(proto.get_operator_name().into(), proto.get_binary_precedence());
+        }
 
         // Create a new basic block to start insertion into.
         let basic_block = state.context.append_basic_block(func_value, "entry");

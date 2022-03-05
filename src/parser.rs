@@ -1,3 +1,4 @@
+use core::panic;
 use std::collections::HashMap;
 use std::io::Write;
 
@@ -9,14 +10,16 @@ use crate::lexer::{get_next_token, Token};
 use crate::State;
 use inkwell::OptimizationLevel;
 
-pub fn get_tok_precedence(token: &Token) -> i32 {
-    match token {
-        Token::TokChar('=') => return 2,
-        Token::TokChar('<') => return 10,
-        Token::TokChar('+') => return 20,
-        Token::TokChar('-') => return 20,
-        Token::TokChar('*') => return 40,
-        _ => return -1,
+pub fn get_tok_precedence(state: &State) -> i32 {
+    // get the char of the token
+    let bin_op = match &state.cur_tok {
+        Token::TokChar(this_char) => this_char,
+        _ => panic!("Expected a TokChar to retrieve precedence."),
+    };
+    let precedence = state.bin_op_precedence.get(&bin_op.to_string());
+    match precedence {
+        Some(val) => *val,
+        None => -1,
     }
 }
 
@@ -114,7 +117,7 @@ fn parse_primary(state: &mut State) -> AST {
 fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: AST) -> AST {
     let mut lhs_loop = lhs;
     loop {
-        let tok_prec = get_tok_precedence(&state.cur_tok);
+        let tok_prec = get_tok_precedence(&state);
 
         // If this is a binop that binds at least as tightly as the current binop,
         // consume it, otherwise we are done.
@@ -139,7 +142,7 @@ fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: AST) -> AST {
 
         // If BinOp binds less tightly with RHS than the operator after RHS, let
         // the pending operator take RHS as its LHS.
-        let next_prec = get_tok_precedence(&state.cur_tok);
+        let next_prec = get_tok_precedence(&state);
         if tok_prec < next_prec {
             rhs = parse_bin_op_rhs(state, tok_prec + 1, rhs);
         }
@@ -160,12 +163,42 @@ fn parse_expression(state: &mut State) -> AST {
 // prototype
 //   ::= id '(' id* ')'
 fn parse_prototype(state: &mut State) -> AST {
-    let fn_name = match state.cur_tok.clone() {
-        Token::TokIdentifier(a) => a,
-        _ => panic!("Expected function name in prototype."),
-    };
+    let mut fn_name: String;
 
-    get_next_token(state);
+    let kind: usize; // 0 = identifier, 1 = unary, 2 = binary.
+    let mut binary_precedence = 30;
+
+    match state.cur_tok.clone() {
+        Token::TokIdentifier(a) => {
+            fn_name = a;
+            kind = 0;
+            get_next_token(state);
+        }
+        Token::TokBinary => {
+            get_next_token(state);
+            let this_char = match state.cur_tok {
+                Token::TokChar(this_char) => {
+                    assert!(this_char.is_ascii(), "Expected binary operator");
+                    this_char
+                }
+                _ => panic!("Expected binary operator"),
+            };
+            fn_name = String::from("binary");
+            fn_name.push_str(&this_char.to_string());
+            kind = 2;
+            get_next_token(state);
+
+            // Read the precedence if present.
+            if let Token::TokNumber(number) = state.cur_tok {
+                if number < 1. || number > 100. {
+                    panic!("Invalid precedence: must be 1..100");
+                }
+                binary_precedence = number as i32;
+                get_next_token(state);
+            }
+        }
+        _ => panic!("Expected function name in prototype"),
+    };
 
     if !matches!(state.cur_tok, Token::TokChar('(')) {
         panic!("Expected '(' in prototype");
@@ -188,7 +221,17 @@ fn parse_prototype(state: &mut State) -> AST {
     // success.
     get_next_token(state); // eat ')'.
 
-    return AST::Prototype(PrototypeAST::new(fn_name, arg_names));
+    // Verify right number of names for operator.
+    if kind != 0 && arg_names.len() != kind {
+        panic!("Invalid number of operands for operator")
+    }
+
+    return AST::Prototype(PrototypeAST::new(
+        fn_name,
+        arg_names,
+        kind != 0,
+        binary_precedence,
+    ));
 }
 
 // definition ::= 'def' prototype expression
@@ -202,7 +245,7 @@ fn parse_definition(state: &mut State) -> AST {
 
 // toplevelexpr ::= expression
 fn parse_top_level_expr(state: &mut State) -> AST {
-    let proto = AST::Prototype(PrototypeAST::new(String::from("anon"), vec![]));
+    let proto = AST::Prototype(PrototypeAST::new(String::from("anon"), vec![], false, 0));
     let body = parse_expression(state);
 
     return AST::Function(FunctionAST::new(proto, body));
