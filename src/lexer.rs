@@ -93,19 +93,13 @@ fn get_token(state: &mut State) -> Token {
     // Comment until end of line.
     if state.last_char == '#' {
         // TODO: !state.last_char.is_whitespace() -> check for != EOF
-        while !state.last_char.is_whitespace() && state.last_char != '\n' && state.last_char != '\r'
+        while state.last_char != '\n' && state.last_char != '\r'
         {
             state.last_char = getchar();
         }
 
         // TODO: !state.last_char.is_whitespace() -> check for != EOF
-        if !state.last_char.is_whitespace() {
-            return get_token(state);
-        }
-    }
-
-    if state.last_char.is_whitespace() {
-        return Token::TokEOF;
+        return get_token(state);
     }
 
     let this_char = state.last_char;
