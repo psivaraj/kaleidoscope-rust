@@ -19,6 +19,7 @@ pub enum Token {
     TokElse,
     TokFor,
     TokIn,
+    TokVar,
 
     // primary
     TokIdentifier(String),
@@ -62,6 +63,8 @@ fn get_token(state: &mut State) -> Token {
             return Token::TokFor;
         } else if identifier_str == "in" {
             return Token::TokIn;
+        } else if identifier_str == "var" {
+            return Token::TokVar;
         } else if identifier_str == "exit" {
             return Token::TokEOF;
         } else {

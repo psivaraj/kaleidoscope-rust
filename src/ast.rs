@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::State;
 use inkwell::values::{AnyValueEnum, BasicValue, FunctionValue, PointerValue};
 use inkwell::FloatPredicate::{ONE, ULT};
@@ -11,6 +13,7 @@ pub enum AST {
     Call(CallExprAST),
     If(IfExprAST),
     For(ForExprAST),
+    Var(VarExprAST),
     Prototype(PrototypeAST),
     Function(FunctionAST),
 }
@@ -318,6 +321,64 @@ impl ForExprAST {
     }
 }
 
+// VarExprAST - Expression class for var/in
+#[derive(Debug)]
+pub struct VarExprAST {
+    names: HashMap<String, AST>,
+    body: Box<AST>,
+}
+
+impl VarExprAST {
+    pub fn new(names: HashMap<String, AST>, body: AST) -> Self {
+        return VarExprAST {
+            names,
+            body: Box::new(body),
+        };
+    }
+
+    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> AnyValueEnum<'ctx> {
+        let preheader_bb = state.builder.get_insert_block().unwrap();
+        let func_value = preheader_bb.get_parent().unwrap();
+
+        let mut old_bindings: HashMap<String, PointerValue<'ctx>> = HashMap::new();
+
+        // Register all variables and emit their initializer.
+        for (var_name, init) in &self.names {
+            let init_val = match init {
+                AST::Null => state.context.f64_type().const_float(0.0),
+                _ => codegen(state, &init).into_float_value(),
+            };
+
+            let alloca = create_entry_block_alloca(state, func_value, var_name);
+
+            // Store the value into alloca
+            state.builder.build_store(alloca, init_val);
+
+            // Remember this binding
+            let old_val = state.named_values.insert(var_name.to_string(), alloca);
+
+            // Remember the old variable binding so that we can restore the binding when
+            // we unrecurse
+            if let Some(val) = old_val {
+                old_bindings.insert(var_name.to_string(), val);
+            }
+        }
+
+        let body_val = codegen(state, &self.body);
+
+        // Pop all our variables from scope.
+        for (var_name, _) in &self.names {
+            let old_val = old_bindings.get(&var_name.to_string());
+            match old_val {
+                None => state.named_values.remove(var_name),
+                Some(val) => state.named_values.insert(var_name.to_string(), *val),
+            };
+        }
+
+        return body_val;
+    }
+}
+
 // PrototypeAST - This class represents the "prototype" for a function,
 // which captures its name, and its argument names (thus implicitly the number
 // of arguments the function takes).
@@ -380,6 +441,7 @@ impl FunctionAST {
                 | AST::Call(_)
                 | AST::If(_)
                 | AST::For(_)
+                | AST::Var(_)
         ));
         FunctionAST {
             proto: Box::new(proto),
@@ -444,10 +506,11 @@ pub fn codegen<'ctx>(state: &mut State<'ctx>, node: &AST) -> AnyValueEnum<'ctx> 
         AST::Variable(inner_val) => inner_val.codegen(state),
         AST::Binary(inner_val) => inner_val.codegen(state),
         AST::Call(inner_val) => inner_val.codegen(state),
-        AST::Function(inner_val) => inner_val.codegen(state),
-        AST::Prototype(inner_val) => inner_val.codegen(state),
         AST::If(inner_val) => inner_val.codegen(state),
         AST::For(inner_val) => inner_val.codegen(state),
+        AST::Var(inner_val) => inner_val.codegen(state),
+        AST::Prototype(inner_val) => inner_val.codegen(state),
+        AST::Function(inner_val) => inner_val.codegen(state),
         _ => panic!(
             "General code generation failure. Could not find key `{:?}`",
             node

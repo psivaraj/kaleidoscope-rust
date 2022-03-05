@@ -1,8 +1,9 @@
+use std::collections::HashMap;
 use std::io::Write;
 
 use crate::ast::{
     codegen, BinaryExprAST, CallExprAST, ForExprAST, FunctionAST, IfExprAST, NumberExprAST,
-    PrototypeAST, VariableExprAST, AST,
+    PrototypeAST, VarExprAST, VariableExprAST, AST,
 };
 use crate::lexer::{get_next_token, Token};
 use crate::State;
@@ -102,6 +103,7 @@ fn parse_primary(state: &mut State) -> AST {
         Token::TokNumber(_) => return parse_number_expr(state),
         Token::TokIf => return parse_if_expr(state),
         Token::TokFor => return parse_for_expr(state),
+        Token::TokVar => return parse_var_expr(state),
         _ => panic!(
             "Unknown token `{:?}` when expecting an expression.",
             state.cur_tok
@@ -277,6 +279,59 @@ fn parse_for_expr(state: &mut State) -> AST {
     let body = parse_expression(state);
 
     return AST::For(ForExprAST::new(id_name, start, end, step, body));
+}
+
+// varexpr ::= 'var' identifier ('=' expression)?
+//                    (',' identifier ('=' expression)?)* 'in' expression
+fn parse_var_expr(state: &mut State) -> AST {
+    get_next_token(state); // eat the `var`
+
+    let mut names: HashMap<String, AST> = HashMap::new();
+
+    // At least one variable name is required.
+    assert!(
+        matches!(state.cur_tok, Token::TokIdentifier(_)),
+        "expected identifier after var"
+    );
+
+    loop {
+        let id_name = match state.cur_tok.clone() {
+            Token::TokIdentifier(a) => a,
+            _ => return AST::Null,
+        };
+        get_next_token(state); // eat the `identifier`
+
+        // Step value is optional
+        let mut init = AST::Null;
+        if matches!(state.cur_tok, Token::TokChar('=')) {
+            get_next_token(state); // eat the '='
+            init = parse_expression(state);
+        };
+
+        names.insert(id_name.to_string(), init);
+
+        // End of var list, exit loop.
+        if !matches!(state.cur_tok, Token::TokChar(',')) {
+            break;
+        }
+
+        get_next_token(state); // eat the ','.
+
+        assert!(
+            matches!(state.cur_tok, Token::TokIdentifier(_)),
+            "expected identifier list after var"
+        );
+    }
+
+    if !matches!(state.cur_tok, Token::TokIn) {
+        panic!("expected 'in' keyword after 'var'");
+    };
+
+    get_next_token(state); // eat the 'in'.
+
+    let body = parse_expression(state);
+
+    return AST::Var(VarExprAST::new(names, body));
 }
 
 fn handle_definition(state: &mut State) {

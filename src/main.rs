@@ -63,6 +63,3 @@ fn main() {
 
     println!("\n{}", state.module.print_to_string().to_string());
 }
-
-// TODO: You are just about to start adding user defined local variables
-// https://llvm.org/docs/tutorial/MyFirstLanguageFrontend/LangImpl07.html#user-defined-local-variables
