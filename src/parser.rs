@@ -4,7 +4,7 @@ use std::io::Write;
 
 use crate::ast::{
     codegen, BinaryExprAST, CallExprAST, ForExprAST, FunctionAST, IfExprAST, NumberExprAST,
-    PrototypeAST, VarExprAST, VariableExprAST, AST,
+    PrototypeAST, UnaryExprAST, VarExprAST, VariableExprAST, AST,
 };
 use crate::lexer::{get_next_token, Token};
 use crate::State;
@@ -14,7 +14,7 @@ pub fn get_tok_precedence(state: &State) -> i32 {
     // get the char of the token
     let bin_op = match &state.cur_tok {
         Token::TokChar(this_char) => this_char,
-        _ => panic!("Expected a TokChar to retrieve precedence."),
+        _ => return -1,
     };
     let precedence = state.bin_op_precedence.get(&bin_op.to_string());
     match precedence {
@@ -134,7 +134,7 @@ fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: AST) -> AST {
         get_next_token(state); // eat binop
 
         // Parse the primary expression after the binary operator.
-        let mut rhs = parse_primary(state);
+        let mut rhs = parse_unary(state);
 
         if matches!(rhs, AST::Null) {
             return rhs;
@@ -152,11 +152,31 @@ fn parse_bin_op_rhs(state: &mut State, expr_prec: i32, lhs: AST) -> AST {
 }
 
 fn parse_expression(state: &mut State) -> AST {
-    let lhs = parse_primary(state);
+    let lhs = parse_unary(state);
     if matches!(lhs, AST::Null) {
         return lhs;
     } else {
         return parse_bin_op_rhs(state, 0, lhs);
+    }
+}
+
+fn parse_unary(state: &mut State) -> AST {
+    // If the current token is not an operator, it must be a primary expr.
+    if !matches!(state.cur_tok, Token::TokChar(_)) {
+        return parse_primary(state);
+    };
+
+    // If this is a unary operator, read it.
+    match state.cur_tok {
+        Token::TokChar(this_char) => {
+            if this_char == '(' || this_char == ')' {
+                return parse_primary(state);
+            }
+            get_next_token(state);
+            let operand = parse_unary(state);
+            return AST::Unary(UnaryExprAST::new(this_char, operand))
+        }
+        _ => return AST::Null,
     }
 }
 
@@ -196,6 +216,20 @@ fn parse_prototype(state: &mut State) -> AST {
                 binary_precedence = number as i32;
                 get_next_token(state);
             }
+        }
+        Token::TokUnary => {
+            get_next_token(state);
+            let this_char = match state.cur_tok {
+                Token::TokChar(this_char) => {
+                    assert!(this_char.is_ascii(), "Expected unary operator");
+                    this_char
+                }
+                _ => panic!("Expected binary operator"),
+            };
+            fn_name = String::from("unary");
+            fn_name.push_str(&this_char.to_string());
+            kind = 1;
+            get_next_token(state);
         }
         _ => panic!("Expected function name in prototype"),
     };

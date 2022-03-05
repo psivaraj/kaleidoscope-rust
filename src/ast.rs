@@ -10,6 +10,7 @@ pub enum AST {
     Number(NumberExprAST),
     Variable(VariableExprAST),
     Binary(BinaryExprAST),
+    Unary(UnaryExprAST),
     Call(CallExprAST),
     If(IfExprAST),
     For(ForExprAST),
@@ -117,6 +118,40 @@ impl BinaryExprAST {
         args_v.push(lhs.into());
         args_v.push(rhs.into());
 
+        let call_site_val = state
+            .builder
+            .build_call(func_val, args_v.as_slice(), "binop");
+
+        call_site_val
+            .try_as_basic_value()
+            .unwrap_left()
+            .into_float_value()
+            .into()
+    }
+}
+
+// UnaryExprAST - Expression class for a unary operator.
+#[derive(Debug)]
+pub struct UnaryExprAST {
+    op: char,
+    operand: Box<AST>,
+}
+
+impl UnaryExprAST {
+    pub fn new(op: char, operand: AST) -> Self {
+        return UnaryExprAST {
+            op,
+            operand: Box::new(operand),
+        };
+    }
+    pub fn codegen<'ctx>(&self, state: &mut State<'ctx>) -> AnyValueEnum<'ctx> {
+        let operand_val = codegen(state, self.operand.as_ref()).into_float_value();
+        let mut args_v = Vec::new();
+        args_v.push(operand_val.into());
+
+        let mut func_name = String::from("unary");
+        func_name.push_str(&self.op.to_string());
+        let func_val = get_function(state, &func_name);
         let call_site_val = state
             .builder
             .build_call(func_val, args_v.as_slice(), "binop");
@@ -291,7 +326,7 @@ impl ForExprAST {
             step_val = codegen(state, self.step.as_ref());
         } else {
             // If not specified, use 1.0.
-            step_val = state.context.f64_type().const_float(0.0).into();
+            step_val = state.context.f64_type().const_float(1.0).into();
         };
 
         // Compute the end condition.
@@ -453,7 +488,7 @@ impl PrototypeAST {
 
     pub fn get_operator_name(&self) -> &str {
         assert!(self.is_unary_op() || self.is_binary_op());
-        &self.name[&self.name.len()-1..]
+        &self.name[&self.name.len() - 1..]
     }
 
     pub fn get_binary_precedence(&self) -> i32 {
@@ -479,11 +514,12 @@ impl FunctionAST {
             AST::Number(_)
                 | AST::Variable(_)
                 | AST::Binary(_)
+                | AST::Unary(_)
                 | AST::Call(_)
                 | AST::If(_)
                 | AST::For(_)
                 | AST::Var(_)
-        ));
+        ), "Unexpected variable {:?}", body);
         FunctionAST {
             proto: Box::new(proto),
             body: Box::new(body),
@@ -508,7 +544,10 @@ impl FunctionAST {
 
         // If this is an operator, install it.
         if proto.is_binary_op() {
-            state.bin_op_precedence.insert(proto.get_operator_name().into(), proto.get_binary_precedence());
+            state.bin_op_precedence.insert(
+                proto.get_operator_name().into(),
+                proto.get_binary_precedence(),
+            );
         }
 
         // Create a new basic block to start insertion into.
@@ -551,6 +590,7 @@ pub fn codegen<'ctx>(state: &mut State<'ctx>, node: &AST) -> AnyValueEnum<'ctx> 
         AST::Number(inner_val) => inner_val.codegen(state),
         AST::Variable(inner_val) => inner_val.codegen(state),
         AST::Binary(inner_val) => inner_val.codegen(state),
+        AST::Unary(inner_val) => inner_val.codegen(state),
         AST::Call(inner_val) => inner_val.codegen(state),
         AST::If(inner_val) => inner_val.codegen(state),
         AST::For(inner_val) => inner_val.codegen(state),
